@@ -1,13 +1,50 @@
-# DocForge — your personal document studio
+<div align="center">
 
-Turn plain text into beautifully typeset **PDFs** and **Word documents** — cover pages, automatic table of contents with real page numbers, running headers, footnotes, citations, equations, cross-references, screenshot placeholders, tables, callouts and more. No account, no server, works offline. Yours forever.
+# DocForge
+
+### Plain text in. A typeset PDF or Word file out.
+
+A local-first document studio: write Markdown, get print-ready **PDFs** and native **.docx** files with cover pages, real table of contents, running heads, footnotes, citations, equations and cross-references. No account, no server, works offline.
+
+[![Live studio](https://img.shields.io/badge/Open%20the%20studio-docforge--io.vercel.app-c0392b?style=for-the-badge)](https://docforge-io.vercel.app/studio)
+
+[![CI](https://github.com/rakshit-737/docforge/actions/workflows/ci.yml/badge.svg)](https://github.com/rakshit-737/docforge/actions/workflows/ci.yml)
+[![Golden master](https://github.com/rakshit-737/docforge/actions/workflows/golden.yml/badge.svg)](https://github.com/rakshit-737/docforge/actions/workflows/golden.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node 24](https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)
+![Local-first](https://img.shields.io/badge/local--first-no%20telemetry-2d3748)
+
+[Live studio](https://docforge-io.vercel.app/studio) · [Markup reference](docs/DIALECT.md) · [Contributing](CONTRIBUTING.md) · [Issues](https://github.com/rakshit-737/docforge/issues)
+
+<br>
+
+<img src="docs/assets/landing.png" alt="DocForge landing page: an A4 page drawn as a dimensioned engineering sheet" width="100%">
+
+</div>
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/studio.png" alt="The studio: Markdown source on the left, paginated A4 preview on the right"></td>
+<td width="50%"><img src="docs/assets/studio-dark.png" alt="The studio in Night shift (dark) mode"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>The desk</b> — source on the left, composed pages on the right</sub></td>
+<td align="center"><sub><b>Night shift</b> — dark chrome; the document always prints on white</sub></td>
+</tr>
+</table>
+
+## Two editions, one engine
 
 DocForge ships twice, from one set of typed packages:
 
-- **The forever edition** — a single self-contained HTML file (`dist/DocForge.html`, ~7 MB) that works from `file://` with the network cable cut. GitHub Pages serves the current build at the site root and the frozen 1.x classic at `/classic`. This build is a feature, not legacy: it ships with every release.
-- **The web studio** (`apps/web`) — the same engine mounted in a Next.js app: CodeMirror source pane, paginated preview, live editing on the pages, IndexedDB persistence with crash recovery, one-click exports, installable PWA that keeps working offline after first load. **Live at [docforge-io.vercel.app](https://docforge-io.vercel.app).** Until the feature-parity audit against the classic edition completes (see Known limitations), the single-file edition remains the reference behaviour.
+- **The web studio** (`apps/web`) — the engine mounted in a Next.js app: CodeMirror source pane, paginated preview, live editing on the pages, IndexedDB persistence with crash recovery, one-click exports, installable PWA that keeps working offline. **Live at [docforge-io.vercel.app](https://docforge-io.vercel.app).**
+- **The forever edition** — a single self-contained HTML file (`dist/DocForge.html`, ~7 MB) that works from `file://` with the network cable cut. GitHub Pages serves the current build at the site root and the frozen 1.x classic at `/classic`. Until the web studio's feature-parity audit completes (see Known limitations), this edition is the reference behaviour.
 
-**▶ Use it:** the hosted studio at [docforge-io.vercel.app/studio](https://docforge-io.vercel.app/studio), or open `dist/DocForge.html` in Chrome or Edge (build it with `node build.mjs`), or visit the Pages deployment. For local development: `corepack pnpm --filter @docforge/web dev`.
+**Get started:** open [the hosted studio](https://docforge-io.vercel.app/studio), or build `dist/DocForge.html` with `node build.mjs` and open it in Chrome or Edge. For local development: `corepack pnpm --filter @docforge/web dev`.
 
 ## Local-first, and provably so
 
