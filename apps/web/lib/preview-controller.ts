@@ -168,12 +168,30 @@ export interface PreviewEvents {
   onRendered?: () => void;
 }
 
+type RenderRequest = {
+  source: string;
+  settings: Settings;
+  attachments: Record<string, unknown>;
+};
+
+type RenderWaiter = {
+  resolve: () => void;
+  reject: (reason: unknown) => void;
+};
+
 export class PreviewController {
   private runtime: StudioRuntime | null = null;
   private previewer: InstanceType<typeof PagedNS.Previewer> | null = null;
   private rendering = false;
-  private renderPending: (() => void) | null = null;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  /* Keep only the newest render request. Typing can produce several source
+     updates while Paged.js is still laying out the previous one; paginating
+     every intermediate snapshot makes the UI feel sticky and used to leave
+     older callers waiting forever when the pending callback was overwritten. */
+  private queuedRender: RenderRequest | null = null;
+  private queuedWaiters: RenderWaiter[] = [];
+  private pageInfo = "";
+  private scrollFrame: number | null = null;
   private pageTotal = 0;
   /** The last rendered .content clone — the DOCX exporter's input (classic lastContentEl). */
   lastContentEl: HTMLElement | null = null;
@@ -190,7 +208,21 @@ export class PreviewController {
     readonly scroller: HTMLElement, // the scroll container ("the stone")
     private events: PreviewEvents,
   ) {
-    scroller.addEventListener("scroll", () => this.updatePageIndicator());
+    scroller.addEventListener("scroll", this.onScroll, { passive: true });
+  }
+
+  private readonly onScroll = () => {
+    if (this.scrollFrame !== null) return;
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = null;
+      this.updatePageIndicator();
+    });
+  };
+
+  private publishPageInfo(text: string) {
+    if (this.pageInfo === text) return;
+    this.pageInfo = text;
+    this.events.onPageInfo(text);
   }
 
   /** Debounced source-edit path — 420ms, the classic cadence. */
@@ -205,9 +237,9 @@ export class PreviewController {
 
   async render(source: string, settings: Settings, attachments: Record<string, unknown>) {
     if (this.rendering) {
-      // collapse to a single trailing re-render, classic renderPending
-      await new Promise<void>((res) => {
-        this.renderPending = res;
+      return new Promise<void>((resolve, reject) => {
+        this.queuedRender = { source, settings, attachments };
+        this.queuedWaiters.push({ resolve, reject });
       });
     }
     if (this.renderTimer) {
@@ -223,7 +255,7 @@ export class PreviewController {
     this.liveEdit?.flush();
     this.rendering = true;
     this.events.onBusy(true);
-    tickerTarget = (n) => this.events.onPageInfo(`p. ${n}…`);
+    tickerTarget = (n) => this.publishPageInfo(`p. ${n}…`);
     // where is the reader, and where is their caret? restored after the swap
     const view: LiveEditView | null = this.liveEdit?.captureView() ?? null;
     try {
@@ -277,7 +309,7 @@ export class PreviewController {
         if (s.isConnected) s.remove();
       });
       this.pageTotal = flow.total;
-      this.events.onPageInfo(`${flow.total} ${flow.total === 1 ? "page" : "pages"}`);
+      this.publishPageInfo(`${flow.total} ${flow.total === 1 ? "page" : "pages"}`);
       this.applyZoom(settings);
       // the classic post-swap order: arm the fresh pages, then put the
       // reader (viewport anchor + caret) back where they were
@@ -289,9 +321,16 @@ export class PreviewController {
       this.rendering = false;
       this.events.onBusy(false);
       tickerTarget = null;
-      const next = this.renderPending;
-      this.renderPending = null;
-      next?.();
+      const next = this.queuedRender;
+      const waiters = this.queuedWaiters;
+      this.queuedRender = null;
+      this.queuedWaiters = [];
+      if (next) {
+        void this.render(next.source, next.settings, next.attachments).then(
+          () => waiters.forEach(({ resolve }) => resolve()),
+          (error) => waiters.forEach(({ reject }) => reject(error)),
+        );
+      }
     }
   }
 
@@ -302,19 +341,20 @@ export class PreviewController {
     const pages = this.deck.querySelectorAll(".pagedjs_page");
     let cur = 1;
     for (let i = 0; i < pages.length; i++) {
-      if (pages[i]!.getBoundingClientRect().bottom > top) {
+      if (pages[i]?.getBoundingClientRect().bottom > top) {
         cur = i + 1;
         break;
       }
     }
-    this.events.onPageInfo(`p. ${cur} · ${this.pageTotal} page${this.pageTotal === 1 ? "" : "s"}`);
+    this.publishPageInfo(`p. ${cur} · ${this.pageTotal} page${this.pageTotal === 1 ? "" : "s"}`);
   }
 
   applyZoom(settings: Settings) {
     if (!this.runtime) return;
     const { Engine } = this.runtime;
-    const pg = Engine.PAGES[settings.page] || Engine.PAGES.A4!;
-    const pgPx = (pg!.w * 96) / 25.4;
+    const pg = Engine.PAGES[settings.page] || Engine.PAGES.A4;
+    if (!pg) return;
+    const pgPx = (pg.w * 96) / 25.4;
     const avail = this.scroller.clientWidth - 44;
     const z = this.zoomMode === "fit" ? Math.min(1.35, Math.max(0.25, avail / pgPx)) : this.zoomVal;
     if (CSS.supports("zoom", "1")) {
@@ -333,6 +373,13 @@ export class PreviewController {
   }
 
   destroy() {
+    if (this.renderTimer) clearTimeout(this.renderTimer);
+    if (this.scrollFrame !== null) cancelAnimationFrame(this.scrollFrame);
+    this.scroller.removeEventListener("scroll", this.onScroll);
+    const error = new Error("Preview controller destroyed");
+    this.queuedWaiters.forEach(({ reject }) => reject(error));
+    this.queuedWaiters = [];
+    this.queuedRender = null;
     if (this.previewer) {
       try {
         (this.previewer as unknown as { polisher: { destroy(): void } }).polisher.destroy();

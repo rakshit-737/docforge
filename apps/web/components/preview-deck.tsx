@@ -115,8 +115,13 @@ export function PreviewDeck({
       controller.schedule(compose, delay);
     });
 
+    let resizeFrame = 0;
     const onResize = () => {
-      if (controller.zoomMode === "fit") controller.applyZoom(useDocStore.getState().settings);
+      if (resizeFrame) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = 0;
+        if (controller.zoomMode === "fit") controller.applyZoom(useDocStore.getState().settings);
+      });
     };
     window.addEventListener("resize", onResize);
 
@@ -138,6 +143,7 @@ export function PreviewDeck({
     return () => {
       bootCancelled = true;
       if (bootTimer) clearTimeout(bootTimer);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
       window.removeEventListener("resize", onResize);
       scrollEl?.removeEventListener("wheel", onWheel);
       document.removeEventListener("keydown", onHistoryKey);
