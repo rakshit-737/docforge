@@ -191,7 +191,9 @@ export class PreviewController {
   private queuedRender: RenderRequest | null = null;
   private queuedWaiters: RenderWaiter[] = [];
   private pageInfo = "";
+  private zoomPercent = -1;
   private scrollFrame: number | null = null;
+  private destroyed = false;
   private pageTotal = 0;
   /** The last rendered .content clone — the DOCX exporter's input (classic lastContentEl). */
   lastContentEl: HTMLElement | null = null;
@@ -212,6 +214,7 @@ export class PreviewController {
   }
 
   private readonly onScroll = () => {
+    if (this.destroyed) return;
     if (this.scrollFrame !== null) return;
     this.scrollFrame = requestAnimationFrame(() => {
       this.scrollFrame = null;
@@ -227,6 +230,7 @@ export class PreviewController {
 
   /** Debounced source-edit path — 420ms, the classic cadence. */
   schedule(run: () => Promise<void> | void, delay = 420) {
+    if (this.destroyed) return;
     if (this.renderTimer) clearTimeout(this.renderTimer);
     this.renderTimer = setTimeout(run, delay);
   }
@@ -236,6 +240,7 @@ export class PreviewController {
   }
 
   async render(source: string, settings: Settings, attachments: Record<string, unknown>) {
+    if (this.destroyed) return;
     if (this.rendering) {
       return new Promise<void>((resolve, reject) => {
         this.queuedRender = { source, settings, attachments };
@@ -292,6 +297,13 @@ export class PreviewController {
       } finally {
         URL.revokeObjectURL(url);
       }
+      if (this.destroyed) {
+        try {
+          (flow.pages || []).forEach((p) => p.removeListeners?.());
+        } catch {}
+        stage.remove();
+        return;
+      }
       /* The flow is final — retire every page's resize observer before live
          edits can mutate the tree (findEndToken crashes on unref'd nodes). */
       try {
@@ -336,16 +348,17 @@ export class PreviewController {
 
   /* the folio readout follows the reader: "p. 4 · 12 pages" */
   updatePageIndicator() {
-    if (!this.pageTotal) return;
+    if (this.destroyed || !this.pageTotal) return;
     const top = this.scroller.getBoundingClientRect().top + 8;
     const pages = this.deck.querySelectorAll(".pagedjs_page");
-    let cur = 1;
-    for (let i = 0; i < pages.length; i++) {
-      if (pages[i]?.getBoundingClientRect().bottom > top) {
-        cur = i + 1;
-        break;
-      }
+    let low = 0;
+    let high = pages.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if ((pages[mid]?.getBoundingClientRect().bottom ?? 0) > top) high = mid;
+      else low = mid + 1;
     }
+    const cur = Math.min(low + 1, pages.length || 1);
     this.publishPageInfo(`p. ${cur} · ${this.pageTotal} page${this.pageTotal === 1 ? "" : "s"}`);
   }
 
@@ -363,7 +376,11 @@ export class PreviewController {
     } else {
       this.deck.style.transform = `scale(${z})`;
     }
-    this.events.onZoomPct(Math.round(z * 100));
+    const percent = Math.round(z * 100);
+    if (this.zoomPercent !== percent) {
+      this.zoomPercent = percent;
+      this.events.onZoomPct(percent);
+    }
   }
 
   setZoom(mode: "fit" | "man", val: number, settings: Settings) {
@@ -373,7 +390,9 @@ export class PreviewController {
   }
 
   destroy() {
+    this.destroyed = true;
     if (this.renderTimer) clearTimeout(this.renderTimer);
+    this.renderTimer = null;
     if (this.scrollFrame !== null) cancelAnimationFrame(this.scrollFrame);
     this.scroller.removeEventListener("scroll", this.onScroll);
     const error = new Error("Preview controller destroyed");
