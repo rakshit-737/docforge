@@ -64,7 +64,10 @@ for (const f of readdirSync(join(REPO, "fonts"))
   const family = FACE[m[1]];
   const s = CUT_STYLE[m[2]];
   if (!family || !s) continue;
-  css += `@font-face{font-family:"${family}";font-style:${s.style};font-weight:${s.weight};font-display:block;src:url("/fonts/${f}") format("truetype")}\n`;
+  /* UI text should appear immediately and settle into the embedded face when
+     it arrives. The document compositor still controls its own font-display
+     policy through Engine.fontFaceCss(). */
+  css += `@font-face{font-family:"${family}";font-style:${s.style};font-weight:${s.weight};font-display:swap;src:url("/fonts/${f}") format("truetype")}\n`;
 }
 writeFileSync(join(PUB, "fonts.css"), css);
 

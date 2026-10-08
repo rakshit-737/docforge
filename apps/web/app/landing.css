@@ -42,7 +42,8 @@
   /* the check-print stamp — the one red */
   --stamp: #c8361f;
   --stamp-2: #a52a15;
-  --letter: "Osifont", "DocForge Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+   --body: "DocForge Inter", "DocForge Sans", "Segoe UI", system-ui, sans-serif;
+   --letter: "DocForge Montserrat", "DocForge Inter", "Osifont", sans-serif;
   --ease: cubic-bezier(0.2, 0, 0, 1);
   /* the drawing's zoom: 1 CSS px of the A4 page = 1 px at 96 dpi, scaled down to fit */
   --pz: 0.48;
@@ -58,7 +59,7 @@
   background: var(--cy);
   background-image: var(--tooth), var(--coat);
   color: var(--tx);
-  font-family: var(--letter);
+   font-family: var(--body);
   font-size: 15px;
   line-height: 1.45;
 
