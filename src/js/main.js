@@ -585,13 +585,18 @@ Land the piece: return to the opening image or question and say what it means no
 
   const editor = $("#editor");
   const scaleWrap = $("#scaleWrap");
-  const DOC_CSS = Engine.fontFaceCss() + (window.__KATEX_CSS__ || "") + (window.__DOC_CSS__ || "");
+  const FONT_CSS = Engine.fontFaceCss();
+  const DOC_CSS = FONT_CSS + (window.__KATEX_CSS__ || "") + (window.__DOC_CSS__ || "");
 
-  /* The chrome wears the same faces as the document (see app.css) — register them
-     on the app document itself so the UI never waits for the first preview render. */
+  /* The chrome wears the same faces as the document (see app.css). Register
+     only the three faces the chrome can render immediately; the complete font
+     catalogue stays in DOC_CSS for the document compositor without adding 23
+     unused @font-face rules to the first-paint stylesheet. */
   {
     const st = document.createElement("style");
-    st.textContent = Engine.fontFaceCss();
+    st.textContent = FONT_CSS.split("\n")
+      .filter(line => /font-family:\"DocForge (Inter|Mono|Serif)\"/.test(line))
+      .join("\n");
     document.head.appendChild(st);
   }
 
