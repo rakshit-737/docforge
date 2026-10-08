@@ -446,6 +446,26 @@ body[data-focus] header[data-chrome] .btn-ghost {
     border-color: var(--rule);
     color: var(--tx);
   }
+
+  /* Keep the wire ticker a single, horizontally scrollable instrument row.
+     Shrinking its labels into multiple lines made the phone's usable writing
+     area jump every time the word count changed and hid the zoom controls. */
+  [data-shell] > footer[data-chrome] {
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  [data-shell] > footer[data-chrome]::-webkit-scrollbar {
+    display: none;
+  }
+  [data-shell] > footer[data-chrome] > * {
+    flex: 0 0 auto;
+  }
+  [data-shell] > footer[data-chrome] > output {
+    white-space: nowrap;
+  }
 }
 
 /* ============================================================
