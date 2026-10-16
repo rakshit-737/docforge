@@ -1,0 +1,73 @@
+name: Quality
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  classic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium revision selected by locked playwright-core
+        run: |
+          pnpm exec playwright-core install --with-deps chromium
+          node -e "console.log('PW_CHROMIUM=' + require('playwright-core').chromium.executablePath())" >> "$GITHUB_ENV"
+      # Every portable UI suite runs; real Word interoperability is explicitly
+      # separate (qa/borders.mjs --word needs Windows with Office installed).
+      - name: Classic UI suites (fail closed)
+        run: make test-classic
+      - name: Upload classic results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classic-quality
+          path: |
+            qa/out/classic/
+            qa/out/b2/
+            qa/*.pdf
+            qa/*.docx
+            qa/*.png
+          if-no-files-found: error
+          retention-days: 7
+  coverage-budgets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Engine coverage, byte parity armed
+        run: make test-coverage
+      - name: Install Chromium revision selected by locked playwright-core
+        run: |
+          pnpm exec playwright-core install --with-deps chromium
+          node -e "console.log('PW_CHROMIUM=' + require('playwright-core').chromium.executablePath())" >> "$GITHUB_ENV"
+      - name: Build and measure real artifacts and cold studio boot
+        run: make budgets
+      - name: Upload coverage and size evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-budget-quality
+          path: |
+            packages/engine/coverage/
+            qa/out/budgets.json
+          if-no-files-found: error
+          retention-days: 7

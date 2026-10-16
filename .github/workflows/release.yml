@@ -23,7 +23,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: corepack pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - name: Build the forever edition
         run: node build.mjs
       - name: Checksum
@@ -43,8 +43,8 @@ jobs:
       - name: Build the npm packages
         if: ${{ env.NPM_TOKEN != '' }}
         run: |
-          corepack pnpm --filter "@docforge/engine" run build
-          corepack pnpm --filter "@docforge/mathml-omml" run build
+          pnpm --filter "@docforge/engine" run build
+          pnpm --filter "@docforge/mathml-omml" run build
           node qa/dist-consume.mjs
       - name: Publish @docforge/engine and @docforge/mathml-omml
         if: ${{ env.NPM_TOKEN != '' }}
@@ -52,5 +52,5 @@ jobs:
           npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           # --no-git-checks: the tag is the release, and the working tree
           # carries the freshly built dist/ these packages publish.
-          corepack pnpm --filter "@docforge/engine" publish --no-git-checks --access public
-          corepack pnpm --filter "@docforge/mathml-omml" publish --no-git-checks --access public
+          pnpm --filter "@docforge/engine" publish --no-git-checks --access public
+          pnpm --filter "@docforge/mathml-omml" publish --no-git-checks --access public

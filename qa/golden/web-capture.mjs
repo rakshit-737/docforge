@@ -2,14 +2,13 @@
 
    For a representative subset of the golden matrix this script:
      1. captures the classic dist/DocForge.html through the existing harness (capture.mjs),
-     2. boots the Next.js studio (`corepack pnpm --filter @docforge/web start`), drives it
+     2. boots the Next.js studio (`pnpm --filter @docforge/web start`), drives it
         through its REAL UI — the settings drawer and the CodeMirror source pane — for the
         same corpus documents and pinned settings,
-     3. waits for compose, records the preview page count, clicks Export Word, captures the
-        download, unzips + normalises it EXACTLY like capture.mjs (normaliseDocx/normXml
-        are not exported there, so they are copied verbatim below),
-     4. compares per case: preview page count, and every normalised word/*.xml member hash
-        plus binary member hashes, quoting the first divergent XML lines when they differ.
+      3. waits for compose, captures preview screenshots and a print-PDF raster, then clicks
+         Export Word and captures the download, unzips + normalises it EXACTLY like capture.mjs,
+      4. compares page counts, preview/PDF images, and every normalised word/*.xml member hash
+         plus binary member hashes, quoting the first divergent XML lines when they differ.
 
    Results: qa/out/golden/web-parity/{classic,web}/ + qa/out/golden/web-parity-report.json
    and a printed table.
@@ -23,9 +22,12 @@ import { createHash } from "node:crypto";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launch } from "../_browser.mjs";
+import { rasterise } from "../_raster.mjs";
 import { readZip } from "./_zip.mjs";
 import { capture } from "./capture.mjs";
+import { diffPng } from "./compare.mjs";
 import { CASES } from "./matrix.mjs";
+import { pageShot } from "./page-shot.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -78,8 +80,11 @@ const SUBSET = [
   "type-large-loose",
   "type-small-single",
 ];
-const only = arg("only", null)?.split(",") ?? SUBSET;
+const only = arg("only", null)?.split(",") ?? CASES.map(c => c.id);
 const cases = CASES.filter(c => only.includes(c.id));
+if (!cases.length || only.some(id => !CASES.some(c => c.id === id))) {
+  throw new Error("--only must name one or more known golden cases");
+}
 
 /* Mirror of the shared defaults contract (src/js/main.js DEFAULTS ≡ apps/web/lib/settings.ts
    defaultSettings). The web studio boots on the welcome TEMPLATE's settings, not the
@@ -88,11 +93,13 @@ const cases = CASES.filter(c => only.includes(c.id));
    always pinned by the matrix; `accent` is resolved below (theme re-inks it on both sides). */
 const DEFAULTS = {
   title: "", subtitle: "", author: "", kicker: "", metaExtra: "",
-  theme: "modern", page: "A4", margins: "normal",
+  theme: "modern", page: "A4", orientation: "portrait", margins: "normal",
   cover: false, header: true, pageNums: true, numbered: false, justify: false, h1break: false,
   hardWrap: false, citeStyle: "ieee",
   borderStyle: "none", borderWeight: "medium", borderColor: "ink",
   fontHead: "theme", fontBody: "theme", baseSize: "11", lineSpacing: "default",
+  headerLeft: "", headerRight: "", footerLeft: "", footerRight: "",
+  watermark: "", letterhead: "", letterheadSize: "14",
 };
 const THEME_ACCENT = { modern: "#2563eb", executive: "#1f3a5f", academic: "#7f1d1d", minimal: "#111827" };
 
@@ -145,8 +152,8 @@ function unzipNormalise(docxPath, dir, entry) {
 
 /* ---------------- the web server ---------------- */
 function startServer(port) {
-  const child = spawn(`corepack pnpm --filter "@docforge/web" start -p ${port}`, {
-    cwd: ROOT, shell: true, stdio: ["ignore", "pipe", "pipe"],
+  const child = spawn("corepack", ["pnpm", "--filter", "@docforge/web", "start", "-p", String(port)], {
+    cwd: ROOT, detached: true, stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", () => {});
   child.stderr.on("data", d => {
@@ -169,7 +176,13 @@ async function waitForServer(url, ms = 60000) {
 }
 
 function killTree(pid) {
-  try { execSync(`taskkill /pid ${pid} /T /F`, { stdio: "ignore" }); } catch {}
+  if (process.platform === "win32") {
+    try { execSync(`taskkill /pid ${pid} /T /F`, { stdio: "ignore" }); } catch {}
+    return;
+  }
+  try { process.kill(-pid, "SIGTERM"); } catch {
+    try { process.kill(pid, "SIGTERM"); } catch {}
+  }
 }
 
 /* ---------------- driving the studio ---------------- */
@@ -186,6 +199,9 @@ async function applyDrawerSettings(page, target) {
   // Open the drawer through its real control (the masthead Settings button).
   await page.locator("header button", { hasText: "Settings" }).click();
   await page.waitForSelector("#sTitle", { timeout: 30000 });
+  for (const summary of await page.locator('details > summary').all()) {
+    if (!await summary.evaluate(el => el.parentElement.hasAttribute("open"))) await summary.click();
+  }
 
   /* The font catalogue arrives asynchronously (loadStudio → Engine.FACES/WORD_CATALOG);
      until it lands the font selects hold only "Theme default" and driving a font value
@@ -193,6 +209,16 @@ async function applyDrawerSettings(page, target) {
      rendered exactly when the catalogue is — wait for it before driving font cases. */
   if (target.fontHead !== "theme" || target.fontBody !== "theme") {
     await page.waitForSelector('#sFontHead option[value="custom"]', { state: "attached", timeout: 60000 });
+  }
+
+  if (target.letterhead) {
+    const [prefix, data] = target.letterhead.split(",");
+    const [picker] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.locator("#sLetterhead").click(),
+    ]);
+    await picker.setFiles({ name: "letterhead.png", mimeType: prefix.slice(5).split(";")[0], buffer: Buffer.from(data, "base64") });
+    await page.waitForSelector("#sLetterheadSize");
   }
 
   const warnings = await page.evaluate((t) => {
@@ -225,13 +251,17 @@ async function applyDrawerSettings(page, target) {
     };
 
     for (const [k, id] of [["title", "sTitle"], ["subtitle", "sSubtitle"], ["author", "sAuthor"],
-      ["kicker", "sKicker"], ["metaExtra", "sMetaExtra"], ["date", "sDate"]]) setText(id, t[k]);
+      ["kicker", "sKicker"], ["metaExtra", "sMetaExtra"], ["date", "sDate"],
+      ["headerLeft", "sHeaderLeft"], ["headerRight", "sHeaderRight"],
+      ["footerLeft", "sFooterLeft"], ["footerRight", "sFooterRight"],
+      ["watermark", "sWatermark"]]) setText(id, t[k]);
     // theme FIRST — switching it re-inks the accent; the explicit accent lands last.
     setSelect("sTheme", t.theme);
-    for (const [k, id] of [["page", "sPage"], ["margins", "sMargins"], ["citeStyle", "sCiteStyle"],
+    for (const [k, id] of [["page", "sPage"], ["orientation", "sOrientation"], ["margins", "sMargins"], ["citeStyle", "sCiteStyle"],
       ["borderStyle", "sBorderStyle"], ["borderWeight", "sBorderWeight"], ["borderColor", "sBorderColor"],
       ["fontHead", "sFontHead"], ["fontBody", "sFontBody"], ["baseSize", "sBaseSize"],
       ["lineSpacing", "sLineSpacing"]]) setSelect(id, t[k]);
+    if (t.letterhead) setSelect("sLetterheadSize", t.letterheadSize);
     for (const [k, id] of [["cover", "tCover"], ["header", "tHeader"], ["pageNums", "tPageNums"],
       ["numbered", "tNumbered"], ["justify", "tJustify"], ["h1break", "tH1break"],
       ["hardWrap", "tHardWrap"]]) setToggle(id, t[k]);
@@ -279,15 +309,18 @@ async function waitForCompose(page, timeout = 240000) {
 async function captureWebCase(browser, base, outDir, c) {
   const dir = join(outDir, c.id);
   rmSync(dir, { recursive: true, force: true });
+  mkdirSync(join(dir, "preview"), { recursive: true });
+  mkdirSync(join(dir, "pdf"), { recursive: true });
   mkdirSync(join(dir, "docx"), { recursive: true });
   const entry = {
     doc: c.doc, settings: c.settings, driven: targetSettings(c),
-    preview: {}, docx: { members: {}, binaries: {} }, errors: [], warnings: [], failed: null,
+    preview: {}, pdf: {}, docx: { members: {}, binaries: {} }, errors: [], warnings: [], failed: null,
   };
 
   const ctx = await browser.newContext({ viewport: { width: 1560, height: 980 }, acceptDownloads: true });
+  await ctx.addInitScript(() => localStorage.setItem("docforge.toured", "1"));
   const page = await ctx.newPage();
-  page.setDefaultTimeout(120000);
+  page.setDefaultTimeout(30000);
   const errors = [];
   page.on("pageerror", e => errors.push("PAGEERROR: " + String(e).slice(0, 300)));
   page.on("console", m => { if (m.type() === "error") errors.push(m.text().slice(0, 300)); });
@@ -310,12 +343,38 @@ async function captureWebCase(browser, base, outDir, c) {
 
     await waitForCompose(page);
     entry.preview.pages = await page.locator("[data-deck] .pagedjs_page").count();
+    // Match the classic capture's manual zoom and print-PDF contract.
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await page.emulateMedia({ media: "print" });
+    entry.preview.files = {};
+    const previewPages = page.locator("[data-deck] .pagedjs_page");
+    for (let i = 0; i < Math.min(entry.preview.pages, 40); i++) {
+      const name = `p${String(i + 1).padStart(2, "0")}.png`;
+      const path = join(dir, "preview", name);
+      await pageShot(previewPages.nth(i), path);
+      entry.preview.files[name] = sha(readFileSync(path));
+    }
+
+    const pdfPath = join(dir, "pdf.pdf");
+    await page.emulateMedia({ media: "print" });
+    await page.pdf({ path: pdfPath, preferCSSPageSize: true, printBackground: true });
+    await page.emulateMedia({ media: "screen" });
+    const raster = await rasterise(pdfPath, join(dir, "pdf"), { browser, scale: 2, maxPages: 40 });
+    entry.pdf.pages = raster.total;
+    entry.pdf.files = {};
+    for (const f of raster.files) {
+      const name = f.replace(/\\/g, "/").split("/").pop();
+      entry.pdf.files[name] = sha(readFileSync(f));
+    }
 
     // Export Word — the real button, the real download
-    const dl = page.waitForEvent("download", { timeout: 180000 });
-    await page.locator("header button", { hasText: "Export Word" }).click();
+    const [dl] = await Promise.all([
+      page.waitForEvent("download", { timeout: 180000 }),
+      page.locator("header button", { hasText: "Export Word" }).click(),
+    ]);
     const docxPath = join(dir, "word.docx");
-    await (await dl).saveAs(docxPath);
+    await dl.saveAs(docxPath);
     unzipNormalise(docxPath, dir, entry);
 
     entry.errors = errors.filter(e => !/favicon/i.test(e));
@@ -340,17 +399,45 @@ function firstDiffLines(aPath, bPath) {
   return "(hash differs but lines match — encoding/EOL difference)";
 }
 
-function compareCase(id, classic, web, classicDir, webDir) {
+function comparePngSet(id, kind, classic, web, classicDir, webDir, diffDir, diffs) {
+  if (classic.pages !== web.pages) {
+    diffs.push(`${kind} page count ${classic.pages ?? "?"} → ${web.pages ?? "?"}`);
+    return;
+  }
+  for (const [name, hash] of Object.entries(classic.files ?? {})) {
+    if (web.files?.[name] === hash) continue;
+    if (!web.files?.[name]) {
+      diffs.push(`${kind}/${name} missing in web capture`);
+      continue;
+    }
+    const result = diffPng(
+      join(classicDir, id, kind, name),
+      join(webDir, id, kind, name),
+      join(diffDir, `${id}__${kind}__${name}`),
+    );
+    if (result.note || result.ratio > 0.001) {
+      diffs.push(`${kind}/${name} differs — ${result.note || `${(result.ratio * 100).toFixed(3)}% pixels`}`);
+    }
+  }
+}
+
+function compareCase(id, classic, web, classicDir, webDir, diffDir) {
   const r = {
     classicPages: classic?.preview?.pages ?? null,
     webPages: web?.preview?.pages ?? null,
-    pagesMatch: null, docxMatch: null,
-    memberDiffs: [], binaryDiffs: [], notes: [],
+    pagesMatch: null, previewMatch: null, pdfPagesMatch: null, pdfMatch: null, docxMatch: null,
+    previewDiffs: [], pdfDiffs: [], memberDiffs: [], binaryDiffs: [], notes: [],
     webErrors: web?.errors ?? [], webWarnings: web?.warnings ?? [],
     failed: web?.failed || classic?.failed || null,
   };
   if (r.failed) return r;
   r.pagesMatch = r.classicPages === r.webPages;
+  r.pdfPagesMatch = classic?.pdf?.pages === web?.pdf?.pages;
+  mkdirSync(diffDir, { recursive: true });
+  comparePngSet(id, "preview", classic.preview, web.preview, classicDir, webDir, diffDir, r.previewDiffs);
+  comparePngSet(id, "pdf", classic.pdf, web.pdf, classicDir, webDir, diffDir, r.pdfDiffs);
+  r.previewMatch = r.pagesMatch && r.previewDiffs.length === 0;
+  r.pdfMatch = r.pdfPagesMatch && r.pdfDiffs.length === 0;
 
   const cm = classic.docx.members, wm = web.docx.members;
   for (const [name, hash] of Object.entries(cm)) {
@@ -411,6 +498,7 @@ try {
     const t0 = Date.now();
     const entry = await captureWebCase(browser, base, webDir, c);
     webManifest.cases[c.id] = entry;
+    writeFileSync(join(webDir, "manifest.json"), JSON.stringify(webManifest, null, 2));
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(`  ${entry.failed ? "FAIL" : "ok  "} ${c.id}  (${entry.preview?.pages ?? "?"}p preview, ${secs}s)${entry.failed ? " — " + entry.failed : ""}`);
   }
@@ -420,14 +508,21 @@ try {
   const report = { generatedAt: new Date().toISOString(), dist: distPath, web: base, cases: {} };
   for (const c of cases) {
     report.cases[c.id] = compareCase(
-      c.id, classicManifest.cases[c.id], webManifest.cases[c.id], classicDir, webDir
+      c.id, classicManifest.cases[c.id], webManifest.cases[c.id], classicDir, webDir,
+      join(OUT, "web-parity-diff"),
     );
   }
   const rows = Object.entries(report.cases);
-  const allOk = rows.every(([, r]) => r.pagesMatch && r.docxMatch && !r.failed);
+  const allOk = rows.every(([, r]) =>
+    r.pagesMatch && r.previewMatch && r.pdfPagesMatch && r.pdfMatch && r.docxMatch &&
+    !r.failed && r.webErrors.length === 0 && r.webWarnings.length === 0
+  );
   report.summary = {
     cases: rows.length,
     pagesMatch: rows.filter(([, r]) => r.pagesMatch).length,
+    previewMatch: rows.filter(([, r]) => r.previewMatch).length,
+    pdfPagesMatch: rows.filter(([, r]) => r.pdfPagesMatch).length,
+    pdfMatch: rows.filter(([, r]) => r.pdfMatch).length,
     docxMatch: rows.filter(([, r]) => r.docxMatch).length,
     ok: allOk,
   };
@@ -441,6 +536,8 @@ try {
   for (const [id, r] of rows) {
     const notes = r.failed ? "FAILED: " + r.failed.slice(0, 60)
       : [
+          r.previewDiffs.length ? `${r.previewDiffs.length} preview diff(s)` : "",
+          r.pdfDiffs.length ? `${r.pdfDiffs.length} pdf diff(s)` : "",
           r.memberDiffs.length ? `${r.memberDiffs.length} member diff(s)` : "",
           r.binaryDiffs.length ? `${r.binaryDiffs.length} binary diff(s)` : "",
           r.webErrors.length ? `${r.webErrors.length} console error(s)` : "",
@@ -452,7 +549,7 @@ try {
     for (const d of r.memberDiffs.slice(0, 3)) console.log(`\n  ✗ ${id} · ${d.member}\n    ${d.diff.replace(/\n/g, "\n  ")}`);
     for (const b of r.binaryDiffs.slice(0, 3)) console.log(`\n  ✗ ${id} · ${b}`);
   }
-  console.log(`\nweb parity: ${report.summary.docxMatch}/${rows.length} docx match, ${report.summary.pagesMatch}/${rows.length} page counts match`);
+  console.log(`\nweb parity: ${report.summary.previewMatch}/${rows.length} preview, ${report.summary.pdfMatch}/${rows.length} pdf, ${report.summary.docxMatch}/${rows.length} docx match`);
   console.log(`report: ${join(OUT, "web-parity-report.json")}`);
   exitCode = allOk ? 0 : 1;
 } finally {

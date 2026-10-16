@@ -22,7 +22,7 @@ jobs:
           cache: pnpm
       # The v1-classic worktree inside run.mjs still uses its own committed
       # package-lock via npm ci — only the main checkout is pnpm.
-      - run: corepack pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       # Both sides render on this same runner, so platform font rasterisation can
       # never masquerade as a document regression.
       - name: Golden comparison against v1-classic

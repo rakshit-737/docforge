@@ -1,10 +1,10 @@
-# Bug & debt ledger — Phase 0 re-verification (2026-08-30)
+# Bug & debt ledger — Phase 0 snapshot plus current status
 
-Every MASTER-PROMPT §3 item, re-verified against the current build (`5d7b645` + Phase 0
-commits) by code inspection with file:line evidence. Several redesign commits landed after
-the 2026-08-14 review, so a good share no longer reproduces. Confirmed and partial items
-are tracked as GitHub issues labelled `ledger`; each closes with a test that would have
-caught it (MASTER-PROMPT §10.7).
+The first section below is a historical Phase-0 snapshot, re-verified against the
+2026-08-30 classic build. It is retained for provenance, not as a current claim.
+The edition-aware status at the end is the source of truth for today. Every row
+names its surface and evidence so classic limitations are not confused with the
+web studio's IndexedDB, React, or security behaviour.
 
 ## §3.1 Accessibility
 
@@ -47,3 +47,34 @@ caught it (MASTER-PROMPT §10.7).
 | No CI beyond deploy | **CONFIRMED** (golden + build-in-CI landed in Phase 0) | [#14](https://github.com/rakshit-737/docforge/issues/14) |
 | Committed artifacts / AI droppings | **FIXED IN PHASE 0** | `9b4aaf2` |
 | No TS / framework / unit tests | the rebuild itself — Phases 1–2 | — |
+
+## Current edition-aware status (2026-10-16)
+
+| Issue | Surface | Verdict | Evidence / next action |
+|---|---|---|---|
+| #2 toolbar tab stops | classic | **OPEN** | Classic `src/index.html` still has a normal tab sequence; web roving toolbar is covered by `apps/web/e2e/web-regression.mjs`. |
+| #3 selector size | classic | **OPEN** | Classic `.tbsel` remains the legacy limitation; do not attribute it to the web shell. |
+| #4 Ctrl+S downloads | classic / web | **CLASSIC OPEN; WEB FIXED** | Classic `main.js` downloads; web `persistence.ts` writes IndexedDB and E2E asserts no download. |
+| #5 zoom and Esc chrome | classic / web | **CLASSIC OPEN; WEB FIXED** | Web `ZoomCluster` and overlay tests; classic keeps its frozen chrome. |
+| #6 editor shortcuts | classic / web | **CLASSIC OPEN; WEB FIXED** | Web `lib/keymap.ts` covers outdent and headings; classic remains unchanged. |
+| #7 template replacement | classic / web | **CLASSIC OPEN; WEB FIXED** | Web template snapshots include settings/attachments and undo; classic remains destructive. |
+| #8 find and replace | classic / web | **CLASSIC OPEN; WEB FIXED** | Web CodeMirror find bar has N-of-M, toggles, highlights, and one-step undo. |
+| #9 browser PDF bookmarks | browser print / CLI | **PARTIAL** | Browser print cannot emit outlines; CLI `--pdf` does. Direct browser export remains future work. |
+| #10 CSL citations | both | **OPEN WITH APA7 INTERIM** | `apa` is the narrow legacy mode; `apa7` suffixes same-year works; BibTeX/RIS/CSL-JSON import exists. Full CSL remains open. |
+| #11 eval'd vendor strings | web / classic | **WEB CLOSED; CLASSIC BOUNDARY COVERED** | Phase 1 dynamic-import record plus classic offline gate. |
+| #12 content security | hosted web | **MITIGATED AND GATED** | Engine raw-HTML sanitizer, CSP without `unsafe-eval`, security assertions in web E2E. Review any new HTML sink. |
+| #13 autosave storage | classic / web | **CLASSIC OPEN; WEB FIXED** | Classic localStorage remains; web documents and versions use IndexedDB. |
+| #14 CI/QA | repository | **PARTIALLY CLOSED** | CI now runs Turbo tests, web E2E/axe/offline, and web screenshot/PDF/DOCX parity. Lighthouse, coverage, and performance budgets remain follow-up. |
+| #15 Mermaid | both | **OPEN** | Await owner/dependency decision in Phase 6 waves. |
+| #16 privacy/offline docs | both | **CLOSED** | README and Phase 5 document local-first/offline guarantees. |
+
+### Gate reconciliation
+
+- `docs/phases/02-appendix-a.md` records **14/14 feature rows done**. That is
+  feature parity, not proof that every formal evidence and budget gate was run.
+- The earlier Phase-2 “golden/Lighthouse still open” language is retained as a
+  gate note; the current web parity and axe jobs now close the screenshot/PDF and
+  automated accessibility portions. Lighthouse and explicit budgets remain open.
+- The initial Phase-3 delta said web import and PDF-bench flows had not been
+  re-driven. The 2026-09-03 appendix update supersedes that note: those flows
+  were re-run on the web surface. The original text above is historical.

@@ -33,7 +33,7 @@ const zipHas = (buf, member) => buf.includes(Buffer.from(member, "latin1"));
 try {
   execFileSync(process.execPath, [CLI, "--help"], { stdio: "pipe" });
 } catch {
-  console.error("packages/cli/dist/cli.mjs missing — run: corepack pnpm --filter @docforge/cli build");
+  console.error("packages/cli/dist/cli.mjs missing — run: pnpm --filter @docforge/cli build");
   process.exit(2);
 }
 

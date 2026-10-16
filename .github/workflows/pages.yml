@@ -27,7 +27,7 @@ jobs:
           cache: pnpm
 
       # current main
-      - run: corepack pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - run: node build.mjs
 
       # the frozen classic edition, built from the v1-classic tag in its own worktree

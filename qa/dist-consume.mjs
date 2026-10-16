@@ -1,8 +1,8 @@
 /* ============================================================
    Phase-5 gate — the npm builds, consumed the way npm users do.
 
-     corepack pnpm --filter "@docforge/engine" run build
-     corepack pnpm --filter "@docforge/mathml-omml" run build
+     pnpm --filter "@docforge/engine" run build
+     pnpm --filter "@docforge/mathml-omml" run build
      node qa/dist-consume.mjs
 
    The workspace eats each package's TypeScript source directly, so nothing

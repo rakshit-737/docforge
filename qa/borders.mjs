@@ -153,13 +153,16 @@ for (const style of ["thickthin", "thinthick", "triple"]) {
   ok("no phantom page after docx export", r.total === before, `screen=${before} print=${r.total}`);
 }
 
-/* Word round-trip: triple through real Word still opens and draws three-line style */
-{
+/* Word is a separate, explicit Windows/Office lane, not a Linux dependency.
+   node qa/borders.mjs --word runs this in addition to every portable assertion. */
+if (process.argv.includes("--word")) {
   await drive.applyDoc(p, { source: SRC, settings: { title: "Border QA", cover: true, borderStyle: "triple" } });
   await drive.exportDocx(p, "qa/out/b2/triple.docx");
   const out = execFileSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", resolve("qa/_docx2pdf.ps1"),
     "-In", "qa/out/b2/triple.docx", "-Out", resolve("qa/out/b2/triple-word.pdf")], { encoding: "utf8", timeout: 240000 });
   ok("triple.docx converts through Word", /PAGES=\d/.test(out));
+} else {
+  console.log("Word round-trip not requested — run qa/borders.mjs --word on Windows with Office");
 }
 
 const errors = p.__errors.filter(e => !/favicon/i.test(e));

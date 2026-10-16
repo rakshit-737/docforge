@@ -199,13 +199,11 @@ the same commit.
 **Row verdicts on audit day: 8 DONE · 6 PARTIAL · 0 CLASSIC-ONLY · 0 N/A**
 (14 rows). Every PARTIAL row closed within four days — see the update below.
 
-Classic-only sub-items inside the PARTIAL rows (6): ctrl+wheel preview zoom ·
-Ctrl+P export-PDF key · Markdown export · rich-HTML paste conversion · the
-studio-door "edit or convert?" PDF choice · ribbon marks on a manuscript
-selection. Plus one live-verified defect: the Ctrl+K double-fire. Plus four
-bench flows (free text, highlighter, image stamps, fallback notice) and five
-import formats (md/txt/tsv/pptx/epub) not yet re-driven on the web surfaces
-they share code with.
+The original audit-day gaps were: ctrl+wheel preview zoom · Ctrl+P export-PDF
+key · Markdown export · rich-HTML paste conversion · the studio-door
+"edit or convert?" PDF choice · ribbon marks on a manuscript selection. That
+historical list is closed by the update below; the remaining formal work is
+automated evidence and performance/Lighthouse budgets, not feature delivery.
 
 > **Update (2026-09-03) — the audit is closed out: 14 DONE · 0 PARTIAL.**
 > All six classic-only sub-items shipped — ctrl+wheel zoom and Ctrl+P
@@ -217,7 +215,7 @@ they share code with.
 > flows (free text, highlighter, image stamps, font-fallback notice) on
 > `/pdf`. Nothing in this appendix is outstanding.
 
-**Shortest path to full parity, in order of value per line of code:**
+**Historical shortest path to parity (completed, retained for provenance):**
 
 1. Guard the shell's Ctrl+K handler with the same `.cm-editor` check its F/H
    branch already has (1 line) — kills the double-fire.
