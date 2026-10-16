@@ -26,6 +26,7 @@ export async function auditWeb(base) {
         onlyCategories: Object.keys(floors),
         formFactor: "desktop",
         screenEmulation: { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1, disabled: false },
+        throttlingMethod: "provided",
       });
       const label = route === "/" ? "landing" : "studio";
       if (!result || result.lhr.runtimeError) throw new Error(`Lighthouse ${label} failed: ${result?.lhr.runtimeError?.message}`);
