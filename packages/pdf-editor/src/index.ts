@@ -120,7 +120,7 @@ type Drag =
   | { kind: "resize"; i: number; ed: Edit; sx: number; sy: number; ow: number; oh: number }
   | { kind: "draw"; i: number; ed: Edit; sx: number; sy: number };
 
-type ResFont = { key: any; type0: boolean };
+type ResFont = { key: unknown; type0: boolean };
 type NativeLayout = { rsrc: ResFont; lines: string[]; hexes: (string | null)[]; needW: number };
 
 export interface PdfEditorHooks {
@@ -178,6 +178,7 @@ const CSS_FONT: Record<string, [family: string, weight: string, style: string]> 
 
 /** DOM handles bound once (bindOnce). Values stay `any`: the shell's DOM
     plumbing is driven by load-bearing ids, not by this package's types. */
+// biome-ignore lint/suspicious/noExplicitAny: DOM handles bound once
 let els: any = null,
   bound = false;
 let bytes: ArrayBuffer | null = null,
