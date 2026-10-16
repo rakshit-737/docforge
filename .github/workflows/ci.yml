@@ -24,7 +24,7 @@ jobs:
       - name: Typecheck
         run: corepack pnpm -r run typecheck
       - name: Unit tests (with the engine byte-parity suite armed)
-        run: corepack pnpm -r run test
+        run: corepack pnpm test
         env:
           RUN_PARITY: "1"
       - name: Build single-file edition
@@ -52,3 +52,38 @@ jobs:
           node qa/dist-consume.mjs
       - name: Build web studio
         run: corepack pnpm --filter "@docforge/web" run build
+
+  web-regression:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Build web studio for production-browser checks
+        run: corepack pnpm --filter "@docforge/web" run build
+      - name: Web studio Playwright, axe, security, and offline regression
+        run: corepack pnpm web:e2e
+        env:
+          PW_CHROMIUM: /usr/bin/google-chrome
+      - name: Web preview/PDF/DOCX parity gate
+        run: corepack pnpm web:parity
+        env:
+          PW_CHROMIUM: /usr/bin/google-chrome
+      - name: Upload web regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-regression-evidence
+          path: |
+            qa/out/golden/web-parity-report.json
+            qa/out/golden/web-parity-diff/
+            qa/out/golden/web-parity/web/manifest.json
+            qa/out/lighthouse/
+          if-no-files-found: ignore
+          retention-days: 14
