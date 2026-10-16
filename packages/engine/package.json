@@ -36,6 +36,7 @@
     "@vitest/coverage-v8": "4.1.11",
     "happy-dom": "^20.0.0",
     "highlight.js": "^11.11.1",
+    "jsdom": "28.1.0",
     "katex": "^0.18.1",
     "marked": "^18.0.7",
     "typescript": "^7.0.2",

@@ -58,6 +58,10 @@ export const api = {
   faceName,
 };
 
+/** The hosted web boundary also tests this directly without changing the
+    historical `Engine` global surface. */
+export { sanitizeRawHtml } from "./sanitize";
+
 /* NOT part of `api`: that object is the classic Engine global, member for
    member in the classic order, and the parity gate holds it there. The
    reader-supplied-typeface registry (§8.2) is a named export the studio
