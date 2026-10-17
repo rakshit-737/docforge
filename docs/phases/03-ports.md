@@ -20,13 +20,12 @@ master plan's sequencing because the Phase-1 packages made it cheap.
   the pre-flighted print route; `.docforge.json` Zod-validated with the legacy
   `pageBorder` migration (since stage 4).
 
-## Gate evidence and historical delta
+## Gate deltas (honest)
 
-The initial Phase-3 note said that the web import door and PDF bench had not yet
-been re-run. That was true for the first `3d120ab` record, but it is no longer
-current. The 2026-09-03 update in `docs/phases/02-appendix-a.md` re-drove all
-12 import formats through the web Open door and re-drove the remaining `/pdf`
-bench flows (rewrite, whiteout, free text, highlighter, image stamp, fallback
-notice, and export bytes). The shared package tests and classic smoke suites
-remain useful regression coverage; they are not substitutes for the web E2E
-gate now committed under `apps/web/e2e/`.
+- The 12-format import smoke against real fixture files (classic
+  `qa/convert-smoke.mjs` class) has not been re-run against the web door yet —
+  CSV verified live; the rest ride the shared importer package whose 120 unit
+  tests cover the parsers.
+- PDF bench flows beyond open/paint (rewrite, whiteout, export bytes) are
+  covered by the package port + classic `qa/pdfedit-smoke.mjs` against the
+  single-file edition, not yet re-driven on `/pdf`.

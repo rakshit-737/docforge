@@ -8,9 +8,7 @@
     "lint": "biome check .",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "golden": "node qa/golden/run.mjs --against v1-classic",
-    "web:e2e": "node apps/web/e2e/web-regression.mjs",
-    "web:parity": "node qa/golden/web-capture.mjs"
+    "golden": "node qa/golden/run.mjs --against v1-classic"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +29,6 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
     "axe-core": "^4.13.0",
-    "lighthouse": "12.8.2",
     "turbo": "^2.10.12",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"

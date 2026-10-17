@@ -4,7 +4,7 @@
    survival through the lexer/parser pair, meta, read-only islands.
    ============================================================ */
 import { describe, expect, it } from "vitest";
-import { render, sanitizeRawHtml } from "../src/index.js";
+import { render } from "../src/index.js";
 import { BASE, r } from "./_helpers.js";
 
 describe("the source line map (live-edit contract)", () => {
@@ -94,49 +94,6 @@ describe("gfm survives the lexer/parser pair (the marked.defaults spread)", () =
   it("hardWrap turns lone newlines into <br>; off by default", () => {
     expect(r("a\nb", { hardWrap: true }).content.querySelector("p br")).toBeTruthy();
     expect(r("a\nb").content.querySelector("p br")).toBeNull();
-  });
-});
-
-describe("raw HTML security boundary", () => {
-  it("removes executable elements, event handlers, dangerous URLs, and remote images", () => {
-    const html = sanitizeRawHtml(
-      '<script>window.pwned=1</script><img src="https://tracker.invalid/pixel" onerror="pwned()"><a href="javascript:alert(1)">bad</a><p style="color: red">kept</p>',
-    );
-    expect(html).not.toMatch(/script|onerror|tracker|javascript/i);
-    expect(html).toContain('<p style="color: red">kept</p>');
-  });
-
-  it("keeps the safe generated dialect carriers used by the renderer", () => {
-    const { content } = r(
-      [
-        "=={green}marked== [styled]{color=#c00 bg=#ff0 size=14 font=Georgia u sc caps} $x^2$ [link](https://example.org/a_b)",
-        "",
-        "```js\nconst x = 1;\n```",
-        "",
-        "![Cap](data:image/png;base64,QUJD)",
-      ].join("\n"),
-    );
-    const mark = content.querySelector("mark");
-    expect(mark?.dataset.hl).toBe("green");
-    expect(mark?.textContent).toBe("marked");
-    expect(mark?.getAttribute("style")).toBe("background:#00FF00");
-    const span = content.querySelector<HTMLElement>(".dfspan");
-    expect(span?.dataset).toMatchObject({
-      color: "cc0000",
-      bg: "ffff00",
-      size: "14",
-      font: "Georgia",
-      u: "1",
-      sc: "1",
-      caps: "1",
-    });
-    expect(span?.style.fontSize).toBe("14pt");
-    expect(content.querySelector(".math-inline .katex")).toBeTruthy();
-    expect(content.querySelector("pre code.hljs .hljs-keyword")).toBeTruthy();
-    expect(content.querySelector("a")?.getAttribute("href")).toBe("https://example.org/a_b");
-    expect(content.querySelector("figure.img img")?.getAttribute("src")).toBe(
-      "data:image/png;base64,QUJD",
-    );
   });
 });
 

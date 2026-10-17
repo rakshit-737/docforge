@@ -6,8 +6,7 @@
       "outputs": ["dist/**"]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "env": ["RUN_PARITY"]
+      "dependsOn": ["^build"]
     },
     "typecheck": {},
     "lint": {}

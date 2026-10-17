@@ -41,8 +41,8 @@ A local-first document studio: write Markdown, get print-ready **PDFs** and nati
 
 DocForge ships twice, from one set of typed packages:
 
-- **The web studio** (`apps/web`) — the engine mounted in a Next.js app: CodeMirror source pane, paginated preview, live editing on the pages, IndexedDB persistence with crash recovery, one-click exports, installable PWA that keeps working offline. The feature-parity audit is complete; its remaining work is evidence and budget enforcement. **Live at [docforge-io.vercel.app](https://docforge-io.vercel.app).**
-- **The forever edition** — a single self-contained HTML file (`dist/DocForge.html`, ~7 MB) that works from `file://` with the network cable cut. GitHub Pages serves the current build at the site root and the frozen 1.x classic at `/classic`. The classic build remains the output-parity reference and preserves its deliberately documented legacy behaviours.
+- **The web studio** (`apps/web`) — the engine mounted in a Next.js app: CodeMirror source pane, paginated preview, live editing on the pages, IndexedDB persistence with crash recovery, one-click exports, installable PWA that keeps working offline. **Live at [docforge-io.vercel.app](https://docforge-io.vercel.app).**
+- **The forever edition** — a single self-contained HTML file (`dist/DocForge.html`, ~7 MB) that works from `file://` with the network cable cut. GitHub Pages serves the current build at the site root and the frozen 1.x classic at `/classic`. Until the web studio's feature-parity audit completes (see Known limitations), this edition is the reference behaviour.
 
 **Get started:** open [the hosted studio](https://docforge-io.vercel.app/studio), or build `dist/DocForge.html` with `node build.mjs` and open it in Chrome or Edge. For local development: `corepack pnpm --filter @docforge/web dev`.
 
@@ -129,7 +129,7 @@ node build.mjs                             # → dist/DocForge.html, the forever
 corepack pnpm --filter @docforge/web dev   # the studio at localhost:3000
 ```
 
-Other useful commands: `corepack pnpm lint` (Biome), `corepack pnpm typecheck`, `corepack pnpm test` (Vitest across packages), `corepack pnpm web:e2e` (production web-studio regression suite), `corepack pnpm web:parity` (web preview/PDF/DOCX parity), and `corepack pnpm golden` (the classic merge gate, below).
+Other useful commands: `corepack pnpm lint` (Biome), `corepack pnpm typecheck`, `corepack pnpm test` (Vitest across packages), `corepack pnpm golden` (the merge gate, below).
 
 ## The golden-master gate
 
@@ -143,12 +143,11 @@ A corpus of torture documents (`qa/golden/corpus/`, one per dialect cluster) is 
 
 ## CI reality
 
-Three continuous workflows plus the release workflow, all on every push to `main` (and PRs where noted):
+Three workflows, all on every push to `main` (and PRs where noted):
 
-- **`ci.yml`** — Biome lint, workspace typecheck, Turbo-ordered unit tests with the engine byte-parity suite armed (`RUN_PARITY=1`), builds both editions, then gates the hosted studio with Playwright, axe, offline reload, and web preview/PDF/DOCX parity. Push + PR.
+- **`ci.yml`** — Biome lint, workspace typecheck, unit tests with the engine byte-parity suite armed (`RUN_PARITY=1`), then builds both editions (single-file + web studio). Push + PR.
 - **`golden.yml`** — the golden-master comparison against `v1-classic`; diff masks and manifests uploaded as an artifact on failure. Push + PR.
 - **`pages.yml`** — builds the current edition and the `v1-classic` edition (in its own worktree, with its own committed lockfile) and deploys both to GitHub Pages: current at `/`, classic at `/classic`.
-- **`release.yml`** — builds and checksums the single-file artifact on version tags and publishes the two public packages when `NPM_TOKEN` is configured.
 
 ## Fonts
 
@@ -162,15 +161,14 @@ Settings → Page border offers seven styles (rule, double, triple, dashed, dott
 
 ## Known limitations
 
-- **PDF bookmarks:** the browser's *Save as PDF* path has no outline panel; Chrome's print dialog cannot emit one. The CLI's direct `--pdf` path does emit an outline and tagged PDF. A browser-side direct export remains future work, tracked as [#9](https://github.com/rakshit-737/docforge/issues/9).
+- **PDF bookmarks:** the printed PDF has no outline panel. Chrome's *Save as PDF* dialog cannot emit one — no CSS or DOM feature reaches it. The fix is a direct PDF export path that skips the print dialog, tracked as [#9](https://github.com/rakshit-737/docforge/issues/9).
 - **Word ≠ PDF line breaks:** the two engines break lines and pages independently, so page totals can differ by a page or two on long documents; the *design* — fonts, colours, spacing, numbering scheme — is the same.
-- **APA labels:** legacy `apa` is intentionally the narrow heuristic formatter and does not disambiguate same-author/same-year works. The `apa7` mode adds deterministic `a`/`b`/`c` suffixes; a full CSL engine remains future work, tracked as [#10](https://github.com/rakshit-737/docforge/issues/10).
+- **APA labels** are derived mechanically from the entry text (surname before the first comma, first year found). Two works by the same author in the same year are not disambiguated — a real CSL engine is the answer, tracked as [#10](https://github.com/rakshit-737/docforge/issues/10).
 - **PDF import is a reconstruction:** a PDF stores positioned glyphs, not paragraphs. Headings, lists and prose are rebuilt heuristically; tables and multi-column layouts flatten to running text, and scanned PDFs (no text layer) need OCR first. Word import is far more faithful — prefer the `.docx` when both exist.
 - **Redaction on the PDF bench is cosmetic:** a rewritten line's original characters remain in the file's hidden text layer beneath the cover. Don't use it to hide secrets.
 - **Compound page borders in Word** (double, triple, thick–thin, thin–thick): Word's own renderer fills the gap between the component lines with a dark tone — a document built natively in Word's *Design → Page Borders* dialog prints the same way. The PDF draws the gaps crisply.
 - **Math in Word:** a handful of LaTeX constructs degrade gracefully (colours dropped, `\\` line breaks outside environments become wide gaps, `\hline` in arrays omitted). Everything exports as a real equation, never an image.
-- **Web evidence is separate from feature parity:** the Appendix-A audit records 14/14 feature rows done, including imports, the PDF bench, live editing, version history, mobile panes, and per-selection formatting. CI now captures web preview screenshots and print PDFs as well as DOCX output, and runs an axe gate. Lighthouse reports, strict coverage thresholds, and editor/bundle budgets are still tracked as quality-system follow-up rather than claimed here.
-- **Hosted content security:** Markdown/import content is sanitized at the engine HTML boundary: executable elements, event-handler attributes, and dangerous URL schemes are removed. The hosted CSP still permits `unsafe-inline` because Next bootstrap, React styling, and Paged.js inject inline code/styles; it forbids `unsafe-eval`, and the regression suite asserts the sanitization decision.
+- **The web studio is not yet at full parity with the classic edition.** The Appendix-A audit (MASTER-PROMPT) is in progress: several classic surfaces — per-selection font menus in the toolbar, the image attach flow, the structure linter, focus mode, the mobile layout — are not yet built in `apps/web`, and the golden corpus has not yet been captured through the web render path. The single-file edition retires nothing until every box is checked.
 
 ## Contributing
 

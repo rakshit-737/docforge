@@ -10,7 +10,7 @@ import { writePng } from "./_pngwrite.mjs";
 const PIXEL_TOLERANCE = 16;    // per-channel delta below this is "same pixel"
 const DIFF_RATIO_MAX = 0.001;  // ≤0.1% differing pixels per page passes (§9.1)
 
-export function diffPng(aPath, bPath, maskPath) {
+function diffPng(aPath, bPath, maskPath) {
   const a = PNG.read(readFileSync(aPath));
   const b = PNG.read(readFileSync(bPath));
   if (a.width !== b.width || a.height !== b.height) {

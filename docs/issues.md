@@ -1,125 +1,156 @@
 # Repository Audit & Issues Log
 
-This is the current, edition-aware status of the original repository audit. The
-issue numbers below are the canonical ledger numbers used by `docs/ledger.md`
-and the GitHub links. “Classic” means the frozen/single-file shell; “web” means
-`apps/web`. A historical finding is retained only when it still reproduces on
-one of those surfaces.
+This document lists all identified issues, bugs, interaction gaps, engineering debt, and enhancement opportunities found in the DocForge repository, categorized using the repository's issue labels.
 
-## Current summary
+---
 
-| ID | Title | Surface | Status | Current evidence |
-|---|---|---|---|---|
-| 2 | Toolbar keyboard navigation has too many stops | classic | Open | `src/index.html`, `src/js/main.js` |
-| 3 | Classic selector options are too small | classic | Open | `src/app.css` |
-| 4 | Classic `Ctrl+S` downloads instead of persisting | classic | Open; web fixed | `src/js/main.js`; `apps/web/lib/persistence.ts` |
-| 5 | Classic zoom/Esc chrome differs | classic | Open; web fixed | `src/index.html`, `src/js/main.js`; `apps/web/components/zoom-cluster.tsx` |
-| 6 | Classic editor lacks outdent/heading shortcuts | classic | Open; web fixed | `src/js/main.js`; `apps/web/lib/keymap.ts` |
-| 7 | Classic template replacement is destructive | classic | Open; web fixed | `src/js/main.js`; `apps/web/components/templates-menu.tsx` |
-| 8 | Classic find/replace lacks full search controls | classic | Open; web fixed | `src/js/main.js`; `apps/web/components/find-bar.tsx` |
-| 9 | Browser print PDFs lack bookmarks | browser print | Open | CLI `--pdf` now emits an outline; browser route remains print-based |
-| 10 | Full CSL citation engine is missing | both | Open; `apa7` interim | `packages/engine/src/render.ts`, `docs/DIALECT.md` |
-| 11 | Classic vendored import path used eval strings | classic | Closed in web/Phase 1 | `docs/phases/01-monorepo-engine.md` |
-| 12 | Content-derived HTML needs a sanitization boundary | hosted web | Mitigated and gated | `packages/engine/src/render.ts`; `apps/web/e2e/web-regression.mjs` |
-| 13 | Classic document autosave uses localStorage | classic | Open; web fixed | `src/js/main.js`; `apps/web/lib/persistence.ts` |
-| 14 | CI and QA evidence were incomplete | repository | Partially closed | `.github/workflows/ci.yml`, `apps/web/e2e`, `qa/golden/web-capture.mjs` |
-| 15 | Mermaid diagrams are not implemented | both | Open; owner decision required | `docs/phases/06-waves.md` |
-| 16 | Local-first/offline guarantees were under-documented | both | Closed | `README.md`, `docs/phases/05-platform.md` |
+## Issues Summary Table
 
-The original audit's IDs 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-15, 16 were not the ledger's GitHub issue IDs. This file intentionally follows
-the ledger numbering now; no new issue should reuse the old shifted numbers.
+| ID | Title | Labels | Description Summary |
+|---|---|---|---|
+| 1 | Keyboard navigation across toolbar controls requires ~46 tab stops | `bug`, `ledger`, `good first issue` | Toolbar lacks roving `tabindex`, forcing high tab stop count across buttons. |
+| 2 | Small option font size (11.5px) on desktop toolbar selectors | `bug`, `ledger`, `good first issue` | `.tbsel` typography falls below standard legibility recommendations. |
+| 3 | `Ctrl+S` key combination unconditionally triggers fresh file download | `bug`, `ledger`, `help wanted` | `Ctrl+S` downloads a new file every press instead of performing local persistence. |
+| 4 | Find & Replace toolbar tool lacks "N of M" match counters, regex toggles, and highlights | `bug`, `ledger`, `enhancement` | Find interface operates on bare textarea without match counts, flags, or editor highlight overlays. |
+| 5 | Secondary zoom controls duplicated in UI chrome with inconsistent styling | `bug`, `ledger`, `good first issue` | Multiple zoom control clusters exist in different toolbar/footer locations. |
+| 6 | Editor indentation does not handle `Shift+Tab` outdenting or `Ctrl+1/2/3` heading shortcuts | `bug`, `ledger`, `good first issue` | `Tab` key indents with spaces but `Shift+Tab` fails to outdent; heading keyboard shortcuts are missing. |
+| 7 | Switching templates causes destructive replacement of document settings and attachments | `bug`, `ledger`, `help wanted` | Template switching resets non-text document settings and attachments without full undo recovery. |
+| 8 | Printed PDF output lacks structured outline / bookmarks tree | `bug`, `ledger`, `enhancement` | Browser print-to-PDF output cannot emit outline bookmarks; requires direct PDF export pipeline (§8.4). |
+| 9 | APA citation author-year formatting fails to disambiguate same author and same year entries | `bug`, `ledger`, `enhancement` | APA citation formatter uses heuristic parsing without disambiguation suffixing; needs CSL citation engine integration. |
+| 10 | Vendored third-party libraries stored and executed as string constants | `bug`, `ledger`, `help wanted` | String eval of vendored libraries blocks strict Content Security Policy (CSP) enforcement. |
+| 11 | Unsanitized `innerHTML` assignments across engine and main UI handlers | `bug`, `ledger` | Multiple direct `innerHTML` assignments exist without DOMPurify sanitization. |
+| 12 | Document autosave uses `localStorage` instead of structured IndexedDB persistence | `bug`, `ledger`, `enhancement` | Document content and project history rely on `localStorage` quota limits rather than IndexedDB. |
+| 13 | Biome linting and formatting errors present across workspace packages | `bug`, `good first issue` | `pnpm lint` fails due to formatting drifts and forbidden TypeScript syntax warnings in `@docforge/pdf-editor` and `apps/web`. |
+| 14 | Missing CSL Engine and BibTeX / RIS citation reference import capabilities | `enhancement`, `help wanted` | Upgrade citation subsystem to support real CSL styles and external reference files. |
+| 15 | Add Mermaid diagram rendering support in Markdown preview and DOCX exports | `enhancement`, `good first issue` | Enable ```` ```mermaid ```` fence parsing to SVG for preview/PDF and embedded pictures in Word docs. |
+| 16 | Clarify local-first privacy guarantee and offline single-file execution in README | `documentation`, `good first issue` | Update documentation regarding offline PWA execution and single-file build guarantees. |
 
-## Details
+---
 
-### Issues 2–8 — classic interaction debt
+## Detailed Issue Breakdown
 
-The classic shell still carries the original toolbar, selector, save, zoom,
-keyboard, template, and find/replace limitations. These are not claims about the
-web studio. The web replacements are covered by the Phase-2 parity record and
-the Playwright suite in `apps/web/e2e/`. Do not close the classic issues merely
-because the web surface is fixed; do not describe them as web regressions.
+### Issue 1: Keyboard navigation across toolbar controls requires ~46 tab stops
+- **Labels:** `bug`, `ledger`, `good first issue`
+- **Location:** `src/index.html:219-277`
+- **Description:** Toolbar buttons and select dropdowns are currently rendered as separate focusable elements in the default tab order. Users navigating by keyboard must press Tab over 46 times to reach the main editor pane.
+- **Remediation:** Implement `role="toolbar"` with a roving `tabindex` pattern to allow arrow key navigation between toolbar tools.
 
-- **#2 keyboard navigation:** the classic toolbar is a normal tab sequence
-  (`src/index.html`); the web toolbar uses a roving group.
-- **#3 option size:** `.tbsel` remains below the desired desktop size in the
-  classic CSS; the web controls are separately styled.
-- **#4 save:** classic `Ctrl+S` still creates a project download. Web `Ctrl+S`
-  calls IndexedDB persistence and is tested without a download.
-- **#5 zoom/Esc:** the classic chrome keeps its historical duplicate controls;
-  web uses one shared `ZoomCluster` and closes its overlays consistently.
-- **#6 shortcuts:** classic Tab/outdent and heading shortcuts remain; web
-  CodeMirror covers `Shift+Tab` and `Ctrl+1/2/3`.
-- **#7 templates:** classic replacement can lose settings and attachments;
-  web snapshots the document and offers undo around a confirmed template load.
-- **#8 find:** classic reports only a total and lacks the newer toggles; web
-  has CodeMirror decorations, match position, case/regex/word options, and an
-  undo-safe Replace All.
+---
 
-### Issue 9: browser print bookmarks
+### Issue 2: Small option font size (11.5px) on desktop toolbar selectors
+- **Labels:** `bug`, `ledger`, `good first issue`
+- **Location:** `src/app.css:409`
+- **Description:** Select elements with the `.tbsel` class render at 11.5px on desktop viewports, causing legibility issues and failing recommended UI contrast/size targets.
+- **Remediation:** Adjust selector typography in `src/app.css` to at least 12px / 13px.
 
-Chrome's print dialog cannot receive a document outline from CSS or the DOM, so
-the browser PDF button remains honest about its limitation. The headless CLI
-path (`packages/cli`, `--pdf`) is a separate direct-PDF implementation and now
-writes outline/tagged output. A browser-side direct export is still future work.
+---
 
-### Issue 10: CSL and APA modes
+### Issue 3: `Ctrl+S` key combination unconditionally triggers fresh file download
+- **Labels:** `bug`, `ledger`, `help wanted`
+- **Location:** `src/js/main.js:2069`
+- **Description:** Pressing `Ctrl+S` invokes `saveProject()`, which unconditionally executes `downloadBlob()`. Habituated users end up accumulating dozens of duplicate project files in their Downloads folder.
+- **Remediation:** Intercept `Ctrl+S` to persist to local storage/IndexedDB or utilize File System Access API where supported, offering explicit export actions for file downloads.
 
-The legacy `apa` formatter is intentionally the narrow heuristic behaviour and
-does not suffix same-author/same-year works. The newer `apa7` mode assigns
-deterministic `a`, `b`, `c` suffixes, and BibTeX/RIS/CSL-JSON import is already
-implemented by `packages/importers`. The remaining issue is a full CSL processor
-and style registry, not missing BibTeX or RIS parsing.
+---
 
-### Issue 11: vendored libraries
+### Issue 4: Find & Replace toolbar tool lacks "N of M" match counters, regex toggles, and highlights
+- **Labels:** `bug`, `ledger`, `enhancement`
+- **Location:** `src/js/main.js:1652-1676`
+- **Description:** Find functionality reports total match count ("2 found") rather than positional status ("2 of 14"), lacks options for case sensitivity or regex matching, and does not highlight matches directly in the editor.
+- **Remediation:** Upgrade Find & Replace toolbar component to track active match index, support search options, and leverage CodeMirror 6 search decorations.
 
-This was closed for the web path in Phase 1: the hosted app uses package imports
-and native dynamic imports instead of executing vendored strings. The classic
-single-file build has a separate packaging boundary; its offline gate remains
-the relevant regression check. The old `src/js/file-import.js` and
-`src/js/engine.js` line references are historical and must not be reused.
+---
 
-### Issue 12: hosted content security
+### Issue 5: Secondary zoom controls duplicated in UI chrome with inconsistent styling
+- **Labels:** `bug`, `ledger`, `good first issue`
+- **Location:** `src/index.html` & `src/js/main.js`
+- **Description:** Zoom adjustments are exposed in two different locations in the UI chrome with disparate control styling and behavior.
+- **Remediation:** Consolidate document preview zoom controls into a single, unified status bar element.
 
-The engine now sanitizes raw Markdown HTML before it is inserted into the
-rendered document: executable elements, event-handler attributes, and
-`javascript:`/`vbscript:`/unsafe data URLs are removed while the DocForge
-dialect's generated markup remains intact. The hosted CSP deliberately still
-contains `unsafe-inline` for Next bootstrap, React style attributes, and
-Paged.js; it does not allow `unsafe-eval`. The web E2E suite asserts both the
-sanitization result and the absence of page errors/network escapes.
+---
 
-### Issue 13: persistence editions
+### Issue 6: Editor indentation does not handle `Shift+Tab` outdenting or `Ctrl+1/2/3` heading shortcuts
+- **Labels:** `bug`, `ledger`, `good first issue`
+- **Location:** `src/js/main.js:2056`
+- **Description:** Pressing `Tab` inside the manuscript editor always inserts space characters regardless of modifier keys, preventing users from outdenting lists or code blocks with `Shift+Tab`. Furthermore, shortcuts `Ctrl+1`, `Ctrl+2`, `Ctrl+3` are unbound.
+- **Remediation:** Implement `Shift+Tab` line outdenting and bind heading level key combinations in editor keyboard handlers.
 
-Classic `localStorage` autosave remains a known quota-limited limitation of the
-forever edition. The web studio uses IndexedDB for documents, attachments, and
-version history, with localStorage reserved for UI preferences. These are
-different products and should not be combined in one ledger row.
+---
 
-### Issue 14: CI and QA evidence
+### Issue 7: Switching templates causes destructive replacement of document settings and attachments
+- **Labels:** `bug`, `ledger`, `help wanted`
+- **Location:** `src/js/main.js:1420-1450`
+- **Description:** While document text changes can be undone, switching templates overwrites page borders, margins, theme variables, and attached screenshot images without a full rollback state.
+- **Remediation:** Adopt a multi-document workspace model or record template switches as atomic undoable state snapshots.
 
-The historical “no lint/CI” report is closed by current workflows. CI now uses
-the root Turbo test graph, builds the web studio, runs the web Playwright suite
-(including axe, offline reload, keyboard/mobile flows, import, PDF bench,
-DOCX export, and security checks), and runs web parity against classic on
-preview screenshots, print-PDF rasters, and DOCX members. Remaining quality
-follow-up is explicit rather than hidden: Lighthouse, strict coverage
-thresholds, and editor/bundle budgets are not yet enforced.
+---
 
-### Issue 15: Mermaid
+### Issue 8: Printed PDF output lacks structured outline / bookmarks tree
+- **Labels:** `bug`, `ledger`, `enhancement`
+- **Location:** `packages/export-pdf` / Print preview route
+- **Description:** Standard browser print-to-PDF output cannot emit document outline structures or PDF bookmarks.
+- **Remediation:** Develop a direct client-side PDF export route leveraging `pdf-lib` / `Paged.js` AST rendering (§8.4).
 
-Mermaid remains an unimplemented feature-wave item. It needs an owner decision
-on the renderer/dependency and a parity specification before implementation.
+---
 
-### Issue 16: privacy documentation
+### Issue 9: APA citation author-year formatting fails to disambiguate same author and same year entries
+- **Labels:** `bug`, `ledger`, `enhancement`
+- **Location:** `packages/engine/src/citations.ts`
+- **Description:** Mechanically parsed citations for multiple entries by the same author published in the same year output identical citation keys without suffix disambiguation (e.g., `2024a`, `2024b`).
+- **Remediation:** Integrate a full CSL processor (`citeproc-js` or `@citation-js`) to handle official APA 7 and IEEE standards.
 
-Closed in the current README and Phase-5 record: the single-file edition works
-from `file://` with network blocked, and the hosted studio is local-first with
-IndexedDB persistence. Cloud sync is not part of the current product.
+---
 
-## Historical source notes
+### Issue 10: Vendored third-party libraries stored and executed as string constants
+- **Labels:** `bug`, `ledger`, `help wanted`
+- **Location:** `src/js/file-import.js`, `src/js/docx-import.js`, `src/js/pdf-import.js`
+- **Description:** Libraries such as Mammoth and PDF.js are embedded as string constants and eval'd at runtime to postpone initialization. This pattern violates strict Content Security Policies (`unsafe-eval`).
+- **Remediation:** Replace string `eval()` constants with native ES module dynamic imports (`import()`).
 
-The Phase-0 snapshot in `docs/ledger.md` is preserved as history, but its
-verdicts and line numbers are not current evidence. The old package names
-`packages/export-pdf`, `packages/engine/src/citations.ts`, and
-`src/js/engine.js` were removed or never existed in the current layout.
+---
+
+### Issue 11: Unsanitized `innerHTML` assignments across engine and main UI handlers
+- **Labels:** `bug`, `ledger`
+- **Location:** `src/js/main.js` (21 instances) and `src/js/engine.js` (11 instances)
+- **Description:** Raw HTML strings generated during markdown parsing, file importing, and live editing are directly assigned to `innerHTML` without DOMPurify sanitization.
+- **Remediation:** Route all markdown-to-DOM conversions through a DOMPurify sanitization pipeline.
+
+---
+
+### Issue 12: Document autosave uses `localStorage` instead of structured IndexedDB persistence
+- **Labels:** `bug`, `ledger`, `enhancement`
+- **Location:** `src/js/main.js:1800-1825`
+- **Description:** `localStorage` storage limits (~5MB) restrict multi-document autosave capabilities and image attachments.
+- **Remediation:** Migrate persistence layer to IndexedDB using `idb` with Zod schema verification.
+
+---
+
+### Issue 13: Biome linting and formatting errors present across workspace packages
+- **Labels:** `bug`, `good first issue`
+- **Location:** `packages/pdf-editor/src/index.ts`, `apps/web/app/globals.css`
+- **Description:** `pnpm lint` reports formatting diffs and forbidden non-null assertions / `any` types in `@docforge/pdf-editor` and Tailwind `@theme` directive parsing errors in CSS.
+- **Remediation:** Apply `biome check --write .` and refine configuration overrides for CSS / Tailwind directives.
+
+---
+
+### Issue 14: Missing CSL Engine and BibTeX / RIS citation reference import capabilities
+- **Labels:** `enhancement`, `help wanted`
+- **Location:** `packages/engine`
+- **Description:** Users currently manually write `[@key]: Full citation entry`. DocForge should support importing `.bib` / RIS files from reference managers like Zotero.
+- **Remediation:** Implement BibTeX/RIS parsers and CSL rendering engine in `packages/engine`.
+
+---
+
+### Issue 15: Add Mermaid diagram rendering support in Markdown preview and DOCX exports
+- **Labels:** `enhancement`, `good first issue`
+- **Location:** `packages/engine` & `packages/export-docx`
+- **Description:** ```` ```mermaid ```` code blocks are rendered as raw text rather than graphical diagrams.
+- **Remediation:** Render Mermaid diagrams to SVG in web preview and convert to embedded PNG/vector shapes in DOCX export.
+
+---
+
+### Issue 16: Clarify local-first privacy guarantee and offline single-file execution in README
+- **Labels:** `documentation`, `good first issue`
+- **Location:** `README.md`
+- **Description:** Ensure documentation highlights that documents remain strictly local and offline-first across both the Next.js PWA and the single-file HTML release.
+- **Remediation:** Add explicit privacy and offline execution guarantees in `README.md`.

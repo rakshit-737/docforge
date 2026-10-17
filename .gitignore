@@ -1,5 +1,4 @@
 node_modules/
-.pnpm-store/
 qa/*.png
 qa/*.pdf
 qa/*.docx
