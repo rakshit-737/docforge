@@ -21,6 +21,7 @@ import { rasterise } from "../_raster.mjs";
 import { applyDoc, printPdf, exportDocx } from "../_drive.mjs";
 import { readZip } from "./_zip.mjs";
 import { CASES } from "./matrix.mjs";
+import { pageShot } from "./page-shot.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAX_PAGES = 40;
@@ -114,6 +115,10 @@ async function captureOnce(b, distUrl, outDir, c, scale) {
     }, null, { timeout: 90000, polling: 250 });
 
     // (a) rendered preview pages
+    // Page-only proof captures: print media removes shell overflow/clipping and
+    // hover UI, without changing the already composed document layout. The same
+    // capture contract is used by both editions; no document pixels are masked.
+    await page.emulateMedia({ media: "print" });
     const pages = page.locator(".pagedjs_page");
     const n = Math.min(await pages.count(), MAX_PAGES);
     entry.preview.pages = await pages.count();
@@ -121,9 +126,10 @@ async function captureOnce(b, distUrl, outDir, c, scale) {
     for (let i = 0; i < n; i++) {
       const name = `p${String(i + 1).padStart(2, "0")}.png`;
       const p = join(dir, "preview", name);
-      await pages.nth(i).screenshot({ path: p, animations: "disabled" });
+      await pageShot(pages.nth(i), p);
       entry.preview.files[name] = sha(readFileSync(p));
     }
+    await page.emulateMedia({ media: "screen" });
 
     // (b) printed PDF, rasterised
     const pdfPath = join(dir, "pdf.pdf");

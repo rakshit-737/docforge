@@ -10,7 +10,7 @@
 
 **The product:** DocForge turns plain text into beautifully typeset PDFs and Word documents — cover pages, TOC with real page numbers, footnotes, citations, LaTeX equations, cross-references, tables, callouts — with live paginated preview, in-place PDF editing, and import from a dozen formats. Today it ships as one offline HTML file built from ~9,500 lines of hand-rolled vanilla JS.
 
-**The mission:** rebuild it as a modern, credible, launchable product **without losing what makes it special**. Concretely:
+**The mission:** maintain and extend it as a modern, credible, launchable product **without losing what makes it special**. The rebuild described below is now the repository's shipped architecture; use the phase records for current status rather than treating every historical baseline statement as an open task. Concretely:
 
 1. **Modern stack** — Next.js 16 + React 19 + TypeScript 7 + Tailwind CSS 4, monorepo, real tests, CI (§4).
 2. **Two shipping targets** — a hosted web app (installable PWA, works offline) **and** the single-file offline HTML edition, both built from the same core packages. The single-file build is a feature, not legacy — "no account, no server, yours forever" stays on the box.
@@ -28,38 +28,35 @@
 ### 1.1 Repo map
 
 ```
-src/index.html        584 lines   app chrome DOM
-src/app.css         1,215 lines   chrome styling ("copy desk" theme, dark + light)
-src/doc.css           458 lines   DOCUMENT styling — sacred, user-facing product surface
-src/js/main.js      2,214 lines   all chrome behavior, bound by DOM ids (bindChrome())
-src/js/engine.js    1,075 lines   markdown → paginated pages (marked + custom syntax + Paged.js)
-src/js/docx-export.js 841 lines   .docx writer (docx lib, embedded fonts, OMML, TOC field)
-src/js/mathml-omml.js 749 lines   KaTeX MathML → Word OMML converter (own work, MIT)
-src/js/pdf-editor.js  887 lines   in-place PDF editing (pdf-lib + pdfjs, ToUnicode inversion)
-src/js/pdf-import.js  420 lines   PDF → markdown heuristic reconstruction
-src/js/live-edit.js   501 lines   edit-on-the-page: contenteditable galley ↔ markdown source sync
-src/js/file-import.js 302 lines   docx/xlsx/pptx/epub/ipynb/csv/html/image importers
-src/js/docx-import.js 112 lines   mammoth wrapper
-src/js/docx-fonts.js  208 lines   font subsetting/embedding for .docx
-build.mjs                         esbuild-based inliner → dist/DocForge.html (~6.7 MB, single file)
-fonts/                            26 TTF cuts of 7 OFL families (Source Sans/Serif/Code, Inter,
-                                  Montserrat, EB Garamond, Crimson Pro)
-qa/*.mjs                          headless Playwright harness driving the real UI by selector ids
-                                  (smoke, deep, borders, import-smoke, manuscript-smoke, cmdk-smoke,
-                                  convert-smoke, visual contact sheets, uishot)
-DESIGN.md                         full design system: "the copy desk" — tokens, components, motion,
-                                  hard rules
-PRODUCT.md                        audience, jobs, brand commitment, constraints
-docs/UI-REDESIGN-PROMPT.md        earlier chrome-redesign brief + AI-slop diagnosis
-docs/TYPOGRAPHIC-AUDIT.md         typography audit
-.github/workflows/pages.yml       GitHub Pages deploy
+apps/web/                         Next.js 16 studio, PWA, routes and Playwright E2E
+packages/engine/                  typed dialect parser, renderer, typography and citations
+packages/export-docx/             AST → OOXML with fonts, OMML, footnotes and TOC
+packages/importers/               docx/pdf/xlsx/pptx/epub/ipynb/csv/html/image/BibTeX/RIS
+packages/mathml-omml/             MathML → editable Word equations
+packages/pdf-editor/              in-place PDF bench logic
+packages/cli/                     headless conversion and direct outline/tagged PDF path
+src/                              classic shell consumed by build.mjs
+build.mjs                         package bundles + classic shell → dist/DocForge.html
+fonts/                            OFL typefaces and licence texts
+qa/                               classic smoke suites and the golden preview/PDF/DOCX gate
+apps/web/e2e/                     hosted-studio Playwright regression, axe and offline checks
+docs/                             phase records, current ledger, dialect and publishing notes
+.github/workflows/                CI, classic golden, Pages and release workflows
 ```
 
-Dependencies: `marked`, `pagedjs`, `docx`, `katex`, `highlight.js`, `mammoth`, `pdf-lib`, `pdfjs-dist`, `esbuild`, `playwright-core`. Import libraries are inlined **as string constants and eval'd on first use** to keep startup fast — a hack to replace (§3.4).
+Dependencies: `marked`, `pagedjs`, `docx`, `katex`, `highlight.js`, `mammoth`, `pdf-lib`, `pdfjs-dist`, `esbuild`, `playwright-core`. The classic edition retains its deliberately isolated build-time/vendor boundary; the web studio uses native package imports and dynamic imports, with no `unsafe-eval` requirement. See Phase 1 for the completed migration record.
 
 ### 1.2 Architecture in one paragraph
 
-Vanilla JS, no framework, no TypeScript, no bundler config beyond a custom `build.mjs` that inlines every script, style, font (base64) and vendored library into one `dist/DocForge.html`. Modules are IIFEs communicating through globals and DOM ids; `main.js` binds ~80 load-bearing selector ids that the QA harness also drives. State lives in module-scope objects + `localStorage` autosave + `.docforge.json` project files. Rendering: markdown → marked with heavy custom extensions → HTML → Paged.js pagination → live preview; PDF export = browser print dialog; DOCX export = independent renderer sharing the same font bytes.
+DocForge is a pnpm/Turborepo monorepo with typed core packages, Vitest unit suites, a
+Next.js/React web studio, and a deliberately preserved vanilla classic shell. Both
+editions consume the extracted engine and exporters; the classic `build.mjs` still
+inlines the shell, CSS, fonts and package bundles into one `dist/DocForge.html`, while
+the web app uses native package imports and IndexedDB persistence. Rendering is
+Markdown → typed package renderer → Paged.js pagination → live preview; the browser
+PDF button uses print CSS, the CLI has a direct PDF path, and DOCX shares the core
+font/export contracts. `src/` and classic `localStorage` references below describe
+that edition only, not the hosted studio.
 
 ### 1.3 The custom markdown dialect (must survive verbatim — Appendix B)
 
@@ -67,7 +64,7 @@ Headings with `{#sec:name}` labels · `++u++` · `~~strike~~` · `==mark==` / `=
 
 ### 1.4 Status of the working tree
 
-The repo has **uncommitted changes** (README, build.mjs, src/*, qa/*, rebuilt dist). Phase 0 starts by committing this WIP as the baseline — nothing gets rebuilt from a dirty tree. Also present: droppings from earlier AI tooling (`.impeccable/`, `.opencode/`, `.superbrain/`, `qa/out/` binaries committed to git) — cleaned up in Phase 0.
+The Phase-0 WIP was committed and the repository now has a tracked monorepo, TypeScript packages, unit tests, CI, a web studio, and a frozen `v1-classic` reference. `git status` is the source of truth for local edits; the old dirty-tree description is historical. The current open quality work is recorded in `docs/ledger.md`, especially web E2E/parity evidence and performance-budget enforcement.
 
 ---
 
@@ -120,14 +117,14 @@ Sources: the 2026-08-14 design review in `.impeccable/critique/`, README "Known 
 - PDF import flattens tables and multi-column layouts; scanned PDFs need OCR (§8.4 adds it).
 - Rewritten PDF lines leave original characters in the hidden text layer — true redaction is a listed feature idea (§8.4), until then keep the honest warning.
 
-### 3.4 Engineering debt (the rebuild's raison d'être)
+### 3.4 Engineering debt (historical baseline and remaining work)
 
-- **No TypeScript, no framework, no unit tests** — 9.5k lines of IIFEs wired through ~80 load-bearing DOM ids; `main.js` alone is 2,214 lines mixing state, DOM, and business logic. The QA harness smoke-tests flows but nothing tests the parser, exporters or importers in isolation.
-- **Vendored libraries as eval'd string constants** — replace with real lazy-loaded ES modules / dynamic `import()` chunks; `eval` also blocks any sane CSP.
-- **`innerHTML` sinks without sanitization** (~24 in main.js, 11 in engine.js) while the app renders pasted web content, imported HTML and attribute-carrying spans. Threat-model it: add DOMPurify (or equivalent) at every markdown→DOM boundary, plus a strict CSP on the hosted app. An offline single-file app has a small attack surface, but a hosted one does not.
-- `localStorage` for autosave — fine for settings; documents belong in IndexedDB (quota, structured data, multi-document, version history §8.1).
+- **No TypeScript, no framework, no unit tests** — historical Phase-0 baseline. The monorepo now has typed packages, Vitest suites, and the Next.js studio; the classic shell remains for the single-file edition.
+- **Vendored libraries as eval'd string constants** — closed for the web path in Phase 1 with native/dynamic imports. Keep the classic build boundary isolated and covered by the file-mode gate.
+- **`innerHTML` sinks without sanitization** — the current engine sanitizes raw Markdown HTML before it reaches the DOM, and the web E2E gate asserts that scripts, event handlers, and dangerous URLs do not survive. Trusted generated markup remains separate and documented in code.
+- `localStorage` for autosave — remains a classic-edition limitation; the web studio stores documents, attachments, and versions in IndexedDB. Do not merge those edition behaviours into one claim.
 - Committed build artifacts and binary QA output (`dist/`, `qa/out/` PNGs/PDFs) bloat the repo; AI-tool droppings (`.impeccable/`, `.opencode/`, `.superbrain/`) belong in `.gitignore`.
-- No CI beyond Pages deploy: no lint, typecheck, test, or build verification on push.
+- No CI beyond Pages deploy: historical baseline. Current CI runs lint, typecheck, Turbo-ordered unit tests, classic offline/golden checks, web build, web E2E/axe/offline checks, and web screenshot/PDF/DOCX parity.
 
 ---
 
@@ -159,20 +156,21 @@ Sources: the 2026-08-14 design review in `.impeccable/critique/`, README "Known 
 ```
 docforge/
 ├─ apps/
-│  ├─ web/            Next.js 16 — landing, docs, and the Studio (client-heavy route, PWA)
-│  └─ single-file/    Vite build → dist/DocForge.html (same core, minimal shell)
+│  └─ web/            Next.js 16 — landing, docs, and the Studio (client-heavy route, PWA)
 ├─ packages/
 │  ├─ engine/         parse: dialect → typed Document AST (pure TS, zero DOM where possible)
-│  ├─ render/         AST → HTML + Paged.js pagination glue + doc.css themes
 │  ├─ export-docx/    AST → .docx (docx lib, fonts, TOC field, footnotes)
-│  ├─ export-pdf/     print-route today; direct-PDF path when built (§8.4)
 │  ├─ mathml-omml/    the converter, published to npm as `@docforge/mathml-omml`
 │  ├─ importers/      docx/pdf/xlsx/pptx/epub/ipynb/csv/html/image → dialect markdown
 │  ├─ pdf-editor/     the in-place PDF bench logic
-│  ├─ fonts/          subset TTFs + licensing + font metadata
 │  └─ config/         shared tsconfig/biome/tailwind preset (copy-desk tokens)
-└─ tooling: turbo.json, pnpm-workspace.yaml, .github/workflows/ci.yml
+└─ tooling: build.mjs, turbo.json, pnpm-workspace.yaml, .github/workflows/ci.yml
 ```
+
+The planned `apps/single-file`, `packages/render`, and `packages/export-pdf` split is a
+deliberate shipped deviation: `build.mjs`, `packages/engine`, and the existing classic
+shell preserve the proven output path. The phase record documents this choice; do not
+reopen it as missing architecture without a new output-parity plan.
 
 The test of the architecture: **`packages/*` must run in Node with no browser** (except render/pdf-editor internals), which is what makes the CLI (§8.5), the npm packages, and real unit tests possible. If engine code needs `document`, that's a design smell — fix the boundary.
 
@@ -228,14 +226,14 @@ Rules of engagement: one phase per working session (or few). The agent opens eac
 - Rebuild every §3.1/§3.2 interaction correctly this time: Radix dialogs (focus-trapped), toolbar with visible overflow menu, find with match counts + highlighting + case/regex toggles, undo-safe replace-all, Ctrl+S = persist, Esc consistency, Shift+Tab outdent, Ctrl+1/2/3 headings.
 - Port live-edit (edit-on-the-page) — the hardest piece; budget real time, keep its caret-anchoring behavior.
 - PWA (Serwist): full offline after first load; installable; offline banner via `useOffline`.
-- **Gate:** feature-parity checklist (Appendix A) fully checked; golden corpus passes against the new render path; axe-clean; keyboard-only walkthrough recorded; Lighthouse PWA installable.
+- **Gate:** the feature-parity checklist is complete (see `docs/phases/02-appendix-a.md`, 14/14). The remaining formal evidence gate is web corpus capture for screenshots/PDF/DOCX, the automated axe/keyboard checks, and a Lighthouse PWA run; CI now owns the first two categories.
 
 ### Phase 3 — Ports of entry and exit *(imports, exports, PDF bench at parity)*
 
 - Wire all importers with drag-drop + Open into the new shell; PDF bench (in-place editor) as its own route/mode with the §3.2 masthead bug designed out.
 - Exports: DOCX one-click; PDF via print route with pre-flighted margins/headers.
 - Project files: Zod-validated open/save with migration from every historical `.docforge.json` shape.
-- **Gate:** import smoke suite green on all 12 formats; export golden tests green; a `v1` project file opens perfectly.
+- **Gate:** import smoke suite green on all 12 formats; export golden tests green; a `v1` project file opens perfectly. The web re-drives recorded in `docs/phases/02-appendix-a.md` supersede the earlier “not yet re-run” note in the initial Phase-3 delta.
 
 ### Phase 4 — Design elevation *(make it look like someone's taste)*
 
@@ -418,7 +416,13 @@ Positioning: DocForge's soul is "no account, no server, yours forever" — so AI
 
 ## Appendix A — Feature-parity checklist (Phase 2/3 gate)
 
-Every box checked against the golden corpus and by hand before `/classic` retires:
+**Status:** the checklist below is the normative target, not a current “all unchecked”
+report. The completed audit is recorded in `docs/phases/02-appendix-a.md` (14/14 rows
+done on 2026-09-03). Automated web evidence and the remaining performance/Lighthouse
+budgets are tracked separately in CI and `docs/ledger.md`.
+
+The audit evidence for these rows is in `docs/phases/02-appendix-a.md`; the checklist is
+retained as the acceptance contract:
 
 - [ ] Live paginated preview: A4/Letter, 3 margin presets, zoom (ctrl+wheel, fit, %), folio readout, outline navigator
 - [ ] Live-edit on pages: caret-preserving recompose, view re-anchoring, read-only generated furniture, one undo history
