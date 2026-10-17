@@ -20,6 +20,22 @@
   widows: 2;
 }
 
+/* The UI's body typography must not leak into generated document furniture.
+   Paged.js moves footnotes out of `.doc` into its own container, so restore
+   the document face and the browser's normal print synthesis policy there. */
+.doc, .pagedjs_footnote_inner_content { font-synthesis: weight style small-caps; }
+.pagedjs_footnote_inner_content {
+  /* Footnotes are generated outside `.doc`; historically they used the
+     classic UI sans rather than the document's selected body face. */
+  font-family: "DocForge Sans", "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Tailwind preflight gives `html` a 1.5 line-height and every element a
+   solid border style. Paged.js measures its page columns through these host
+   elements, so keep the compositor's wrappers on their browser defaults; the
+   document itself still supplies its intentional typography below. */
+.pagedjs_pagebox, .pagedjs_area, .pagedjs_page_content { line-height: normal; border-style: none; }
+
 /* ---------- base blocks ---------- */
 /* text-wrap:pretty ships in the print engine (Chromium 117+): no orphan word alone on
    a paragraph's last line. Older engines simply ignore it. */
@@ -58,6 +74,12 @@
 }
 .doc h3 { font-size: 12pt; font-weight: 700; margin: 13.1pt 0 4.4pt; }   /* 0.75 / 0.25 line */
 .doc h4 { font-size: 11pt; font-weight: 700; font-style: italic; margin: 10.9pt 0 4.4pt; color: #333a45; }
+/* Tailwind's preflight resets h5/h6 in the web shell. The classic edition
+   receives the browser defaults for these two levels, so restate them here
+   to keep the document stylesheet independent of its host shell. */
+.doc h5, .doc h6 { display: block; font-family: inherit; font-weight: 700; }
+.doc h5 { font-size: 0.83em; margin-block: 1.67em; }
+.doc h6 { font-size: 0.67em; margin-block: 2.33em; }
 
 .doc .hnum { color: var(--a600); margin-right: 3.5pt; font-variant-numeric: tabular-nums; }
 .doc h1 .hnum { color: var(--a600); }
@@ -75,7 +97,11 @@
   margin: 17.5pt auto; width: 100%;
 }
 
-.doc ul, .doc ol { margin: 0 0 8.75pt; padding-left: 18pt; }
+.doc ul, .doc ol {
+  margin: 0 0 8.75pt;
+  padding-left: 18pt;
+  list-style: revert; /* the web shell's Tailwind preflight removes markers */
+}
 .doc li { margin: 0 0 2.2pt; }
 .doc li > ul, .doc li > ol { margin: 2.2pt 0 2.2pt; }
 .doc ul li::marker { color: var(--a600); }

@@ -269,6 +269,20 @@ export class PreviewController {
       registerHandlers(Paged);
       const docCssText = await loadDocCss();
 
+      /* The classic bundle carries its font faces in the same stylesheet as
+         the document, so Paged.js cannot start measuring before they exist.
+         The web shell stages the faces as external assets; explicitly warm
+         every shipped family before composing or the first render can paginate
+         with fallback metrics and then settle into a different page break. */
+      await Promise.all(
+        Engine.EMBEDDED.flatMap((face) => [
+          document.fonts.load(`400 11pt "${face.name}"`),
+          document.fonts.load(`700 11pt "${face.name}"`),
+          document.fonts.load(`italic 400 11pt "${face.name}"`),
+          document.fonts.load(`italic 700 11pt "${face.name}"`),
+        ]),
+      );
+
       const { doc } = Engine.render(
         source,
         settings,
@@ -287,7 +301,6 @@ export class PreviewController {
       const oldStyles = [...document.querySelectorAll("style[data-pagedjs-inserted-styles]")];
       const stage = document.createElement("div");
       stage.style.cssText = "position:absolute;left:-100000px;top:0;";
-      if (this.deck.style.zoom) stage.style.zoom = this.deck.style.zoom;
       this.scroller.appendChild(stage);
       this.previewer = new Paged.Previewer();
       const url = URL.createObjectURL(new Blob([css], { type: "text/css" }));

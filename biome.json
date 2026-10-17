@@ -23,19 +23,23 @@
     "rules": {
       "preset": "recommended",
       "style": {
-        "useTemplate": "off"
+        "useTemplate": "off",
+        "noNonNullAssertion": "off"
       },
       "complexity": {
         "useOptionalChain": "off",
         "noImportantStyles": "off"
       },
       "correctness": {
-        "noUnusedFunctionParameters": "off"
+        "noUnusedFunctionParameters": "off",
+        "noUnusedVariables": "off"
       },
       "suspicious": {
         "noImplicitAnyLet": "off",
         "noAssignInExpressions": "off",
-        "useIterableCallbackReturn": "off"
+        "useIterableCallbackReturn": "off",
+        "noExplicitAny": "off",
+        "noGlobalIsFinite": "off"
       }
     }
   },

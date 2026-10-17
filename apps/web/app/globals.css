@@ -306,8 +306,10 @@ select:focus-visible {
 @media print {
   html,
   body {
+    height: auto !important;
     overflow: visible;
     background: #fff;
+    display: block;
   }
   [data-chrome] {
     display: none !important;

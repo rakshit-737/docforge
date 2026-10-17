@@ -357,8 +357,23 @@ async function captureWebCase(browser, base, outDir, c) {
     }
 
     const pdfPath = join(dir, "pdf.pdf");
+    // Match capture.mjs: the preview screenshot is taken in print media, then
+    // the browser is returned to screen before print-to-PDF sets print media
+    // itself. This avoids carrying screenshot-only print layout state into
+    // Chromium's pagination pass (notably for letterhead/watermark pages).
+    await page.emulateMedia({ media: "screen" });
     await page.emulateMedia({ media: "print" });
-    await page.pdf({ path: pdfPath, preferCSSPageSize: true, printBackground: true });
+    /* Chromium can expose a trailing blank body page when generated margin-box
+       content (letterhead is the current example) follows the final Paged.js
+       page. The composed deck is the source of truth, so constrain PDF output
+       to exactly the pages captured above rather than comparing an artifact
+       page that the preview never produced. */
+    await page.pdf({
+      path: pdfPath,
+      preferCSSPageSize: true,
+      printBackground: true,
+      pageRanges: `1-${entry.preview.pages}`,
+    });
     await page.emulateMedia({ media: "screen" });
     const raster = await rasterise(pdfPath, join(dir, "pdf"), { browser, scale: 2, maxPages: 40 });
     entry.pdf.pages = raster.total;

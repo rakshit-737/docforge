@@ -127,7 +127,9 @@ async function openStudio(page) {
 }
 
 async function replaceSource(page, source, needle = source.split("\n", 1)[0]) {
-  await page.evaluate(() => { window.__oldDeck = document.querySelector("[data-deck]")?.firstElementChild; });
+  await page.evaluate(() => {
+    window.__oldDeck = document.querySelector("[data-deck]")?.firstElementChild;
+  });
   const editor = page.locator(".cm-content");
   await editor.click();
   await page.keyboard.press("Control+a");
@@ -137,10 +139,14 @@ async function replaceSource(page, source, needle = source.split("\n", 1)[0]) {
     needle,
   );
   await page.waitForSelector("[data-deck] .pagedjs_page", { timeout: 120000 });
-  await page.waitForFunction(() => {
-    const deck = document.querySelector("[data-deck]");
-    return deck?.firstElementChild && deck.firstElementChild !== window.__oldDeck;
-  }, null, { timeout: 60000 });
+  await page.waitForFunction(
+    () => {
+      const deck = document.querySelector("[data-deck]");
+      return deck?.firstElementChild && deck.firstElementChild !== window.__oldDeck;
+    },
+    null,
+    { timeout: 60000 },
+  );
   await sleep(500);
 }
 
@@ -222,9 +228,9 @@ async function main() {
             });
             return visible?.getAttribute("data-ss") ?? els[0]?.getAttribute("data-ss") ?? "0";
           });
-          const editable = page.locator(
-            `[data-deck] .content > p[data-ss="${visibleSourceLine}"]`,
-          ).first();
+          const editable = page
+            .locator(`[data-deck] .content > p[data-ss="${visibleSourceLine}"]`)
+            .first();
           await editable.click();
           const before = await scroll.evaluate((el) => el.scrollTop);
           await page.keyboard.press("End");

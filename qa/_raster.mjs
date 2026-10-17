@@ -50,13 +50,18 @@ export async function rasterise(pdfPath, outDir, { scale = 2, maxPages = 40, bro
     await page.goto(`http://127.0.0.1:${port}/__harness`);
     await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
 
-    const result = await page.evaluate(
-      async ({ bytes, scale, maxPages }) => {
-        const doc = await window.pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
-        const out = [];
-        const n = Math.min(doc.numPages, maxPages);
-        for (let i = 1; i <= n; i++) {
-          const pg = await doc.getPage(i);
+    const total = await page.evaluate(
+      async bytes => {
+        window.__pdfDoc = await window.pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
+        return window.__pdfDoc.numPages;
+      },
+      bytes,
+    );
+    const files = [];
+    for (let i = 1; i <= Math.min(total, maxPages); i++) {
+      const dataUrl = await page.evaluate(
+        async ({ pageNumber, scale }) => {
+          const pg = await window.__pdfDoc.getPage(pageNumber);
           const vp = pg.getViewport({ scale });
           const cv = document.createElement("canvas");
           cv.width = Math.ceil(vp.width);
@@ -65,19 +70,18 @@ export async function rasterise(pdfPath, outDir, { scale = 2, maxPages = 40, bro
           cx.fillStyle = "#fff";
           cx.fillRect(0, 0, cv.width, cv.height);
           await pg.render({ canvasContext: cx, viewport: vp }).promise;
-          out.push(cv.toDataURL("image/png"));
-        }
-        return { pages: out, total: doc.numPages };
-      },
-      { bytes, scale, maxPages }
-    );
-
-    const files = result.pages.map((dataUrl, i) => {
-      const p = join(outDir, `p${String(i + 1).padStart(2, "0")}.png`);
+          const out = cv.toDataURL("image/png");
+          cv.width = 1;
+          cv.height = 1;
+          return out;
+        },
+        { pageNumber: i, scale },
+      );
+      const p = join(outDir, `p${String(i).padStart(2, "0")}.png`);
       writeFileSync(p, Buffer.from(dataUrl.split(",")[1], "base64"));
-      return p;
-    });
-    return { files, total: result.total };
+      files.push(p);
+    }
+    return { files, total };
   } finally {
     await page.context().close();
     if (own) await b.close();
